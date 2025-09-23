@@ -1,0 +1,126 @@
+diff --git a/app/schemas/bookings.py b/app/schemas/bookings.py
+index 1234567..89abcde 100644
+--- a/app/schemas/bookings.py
++++ b/app/schemas/bookings.py
+@@
+ from pydantic import BaseModel
+ from typing import Optional
+ import uuid
++from datetime import datetime
+ 
+ class BookingBase(BaseModel):
+-    start_date: str
+-    end_date: str
++    start_date: datetime
++    end_date: datetime
+     total_amount: float
+     platform_fee: Optional[float]
+     tip: Optional[float]
+diff --git a/app/schemas/reviews.py b/app/schemas/reviews.py
+index 2345678..9abcdef 100644
+--- a/app/schemas/reviews.py
++++ b/app/schemas/reviews.py
+@@
+ from pydantic import BaseModel
+ from typing import Optional
+ import uuid
++from datetime import datetime
+ 
+ class ReviewResponse(ReviewBase):
+     id: uuid.UUID
+     booking_id: uuid.UUID
+     reviewer_id: uuid.UUID
+     reviewed_id: uuid.UUID
+     approval_status: str
+-    created_at: Optional[str]
++    created_at: datetime
+ 
+     class Config:
+         orm_mode = True
+diff --git a/app/schemas/notifications.py b/app/schemas/notifications.py
+index 3456789..abcdef0 100644
+--- a/app/schemas/notifications.py
++++ b/app/schemas/notifications.py
+@@
+ from pydantic import BaseModel
+ from typing import Optional, Dict
+ import uuid
+ from enum import Enum
++from datetime import datetime
+ 
+ class NotificationResponse(NotificationBase):
+     id: uuid.UUID
+     user_id: uuid.UUID
+-    sent_at: Optional[str]
++    sent_at: Optional[datetime]
+     delivered: bool
+ 
+     class Config:
+         orm_mode = True
+ 
+ class UserNotificationPreferenceResponse(UserNotificationPreferenceBase):
+     user_id: uuid.UUID
+-    updated_at: Optional[str]
++    updated_at: Optional[datetime]
+ 
+     class Config:
+         orm_mode = True
+ 
+ class NotificationLogResponse(BaseModel):
+     id: uuid.UUID
+     notification_id: uuid.UUID
+     channel: NotificationChannel
+     status: str
+     response: Optional[Dict]
+-    created_at: Optional[str]
++    created_at: Optional[datetime]
+ 
+     class Config:
+         orm_mode = True
+diff --git a/app/schemas/systems.py b/app/schemas/systems.py
+index 4567890..abcdef1 100644
+--- a/app/schemas/systems.py
++++ b/app/schemas/systems.py
+@@
+ from pydantic import BaseModel
+ from typing import Optional, Dict
+ import uuid
+ from enum import Enum
++from datetime import datetime, date
+ 
+ class SessionResponse(SessionBase):
+     id: uuid.UUID
+     user_id: uuid.UUID
+-    created_at: Optional[str]
++    created_at: datetime
+ 
+     class Config:
+         orm_mode = True
+ 
+ class SystemEventResponse(SystemEventBase):
+     id: uuid.UUID
+     user_id: Optional[uuid.UUID]
+-    created_at: Optional[str]
++    created_at: datetime
+ 
+     class Config:
+         orm_mode = True
+ 
+ class TaxRuleResponse(TaxRuleBase):
+     province_code: str
+-    effective_date: Optional[str]
++    effective_date: date
+ 
+     class Config:
+         orm_mode = True
+ 
+ class ProviderMetricResponse(ProviderMetricBase):
+     id: uuid.UUID
+     provider_id: uuid.UUID
+-    created_at: Optional[str]
+-    updated_at: Optional[str]
++    created_at: datetime
++    updated_at: datetime
+ 
+     class Config:
+         orm_mode = True

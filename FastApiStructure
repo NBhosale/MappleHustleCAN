@@ -1,0 +1,30 @@
+app/
+├── main.py                  # FastAPI entrypoint
+├── db.py                    # DB session, engine setup
+├── models/                  # SQLAlchemy models (ORM layer)
+│   ├── users.py
+│   ├── providers.py
+│   ├── services.py
+│   ├── bookings.py
+│   ├── items.py
+│   ├── payments.py
+│   ├── messages.py
+│   ├── notifications.py
+│   ├── subscriptions.py
+│   └── __init__.py
+├── schemas/                 # Pydantic schemas (request/response validation)
+│   ├── users.py
+│   ├── bookings.py
+│   └── ...
+├── routers/                 # API endpoints
+│   ├── users.py
+│   ├── providers.py
+│   ├── services.py
+│   ├── bookings.py
+│   └── ...
+├── utils/                   # Helpers (auth, hashing, notifications)
+│   ├── auth.py
+│   ├── hashing.py
+│   ├── sms.py               # Twilio integration
+│   ├── email.py             # SendGrid/SES integration
+│   └── ...
