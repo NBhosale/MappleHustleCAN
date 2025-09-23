@@ -4,7 +4,7 @@ from sqlalchemy import Column, String, Boolean, Enum, DateTime, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from app.db import Base
+from app.db.base_class import Base
 
 
 class VerificationStatus(enum.Enum):
