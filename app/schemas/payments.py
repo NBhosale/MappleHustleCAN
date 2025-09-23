@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional
 import uuid
 from enum import Enum
+from datetime import datetime
 
 
 class PaymentStatus(str, Enum):
@@ -25,6 +26,7 @@ class RefundResponse(RefundBase):
     id: uuid.UUID
     payment_id: uuid.UUID
     stripe_refund_id: Optional[str]
+    created_at: datetime
 
     class Config:
         orm_mode = True
@@ -48,6 +50,8 @@ class PaymentResponse(PaymentBase):
     order_id: Optional[uuid.UUID]
     stripe_transaction_id: str
     refund_id: Optional[uuid.UUID]
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         orm_mode = True

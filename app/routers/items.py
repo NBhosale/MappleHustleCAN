@@ -1,20 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+import uuid
+
 from app.db import SessionLocal
-from app.models.items import Item, ItemCategory, ItemTag
 from app.schemas.items import (
-    ItemCategoryCreate,
-    ItemCategoryResponse,
-    ItemCreate,
-    ItemResponse,
-    ItemTagCreate,
-    ItemTagResponse,
+    ItemCategoryCreate, ItemCategoryResponse,
+    ItemCreate, ItemResponse,
+    ItemTagCreate, ItemTagResponse,
 )
-from app.utils.deps import get_current_user, require_provider
+from app.services import items as item_service
+from app.utils.deps import require_provider
 
 router = APIRouter(prefix="/items", tags=["Items"])
 
-# Dependency
+
+# --- Dependency: DB session ---
 def get_db():
     db = SessionLocal()
     try:
@@ -28,18 +29,17 @@ def get_db():
 def create_category(
     category: ItemCategoryCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),  # could restrict to admin if you want
+    current_user=Depends(require_provider),
 ):
-    new_category = ItemCategory(**category.dict())
-    db.add(new_category)
-    db.commit()
-    db.refresh(new_category)
-    return new_category
+    try:
+        return item_service.create_category(db, category)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/categories", response_model=list[ItemCategoryResponse])
+@router.get("/categories", response_model=List[ItemCategoryResponse])
 def list_categories(db: Session = Depends(get_db)):
-    return db.query(ItemCategory).all()
+    return item_service.list_categories(db)
 
 
 # --- Items ---
@@ -49,51 +49,36 @@ def create_item(
     db: Session = Depends(get_db),
     current_user=Depends(require_provider),
 ):
-    if str(item.provider_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You can only create items for yourself")
-
-    new_item = Item(**item.dict())
-    db.add(new_item)
-    db.commit()
-    db.refresh(new_item)
-    return new_item
+    try:
+        return item_service.create_item(db, item)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/", response_model=list[ItemResponse])
+@router.get("/", response_model=List[ItemResponse])
 def list_items(db: Session = Depends(get_db)):
-    return db.query(Item).all()
+    return item_service.list_items(db)
 
 
-@router.get("/provider/me", response_model=list[ItemResponse])
-def list_my_items(
-    db: Session = Depends(get_db),
-    current_user=Depends(require_provider),
-):
-    return db.query(Item).filter(Item.provider_id == current_user.id).all()
+@router.get("/provider/{provider_id}", response_model=List[ItemResponse])
+def list_provider_items(provider_id: uuid.UUID, db: Session = Depends(get_db)):
+    return item_service.list_provider_items(db, provider_id)
 
 
 # --- Tags ---
 @router.post("/{item_id}/tags", response_model=ItemTagResponse)
-def add_tag(
-    item_id: str,
+def add_item_tag(
+    item_id: uuid.UUID,
     tag: ItemTagCreate,
     db: Session = Depends(get_db),
     current_user=Depends(require_provider),
 ):
-    item = db.query(Item).filter(Item.id == item_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    if str(item.provider_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You can only tag your own items")
-
-    new_tag = ItemTag(item_id=item_id, tag=tag.tag)
-    db.add(new_tag)
-    db.commit()
-    db.refresh(new_tag)
-    return new_tag
+    try:
+        return item_service.add_item_tag(db, item_id, tag)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{item_id}/tags", response_model=list[ItemTagResponse])
-def list_tags(item_id: str, db: Session = Depends(get_db)):
-    return db.query(ItemTag).filter(ItemTag.item_id == item_id).all()
+@router.get("/{item_id}/tags", response_model=List[ItemTagResponse])
+def list_item_tags(item_id: uuid.UUID, db: Session = Depends(get_db)):
+    return item_service.list_item_tags(db, item_id)

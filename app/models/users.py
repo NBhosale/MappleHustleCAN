@@ -1,54 +1,46 @@
 import uuid
-import enum
-from sqlalchemy import Column, String, Boolean, Enum, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID, CITEXT
+from sqlalchemy import Column, String, Enum, Boolean, TIMESTAMP, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.types import DateTime
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from app.db.base_class import Base
+from geoalchemy2 import Geography
 
-
-# Enums (mirror Postgres enums)
-class UserRole(enum.Enum):
-    client = "client"
-    provider = "provider"
-    admin = "admin"
-
-class UserStatus(enum.Enum):
-    active = "active"
-    suspended = "suspended"
-    deleted = "deleted"
+from app.db.base import Base
+from app.models.enums import UserRole, UserStatus, ContactMethod
 
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(CITEXT, unique=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+
+    # --- Profile ---
+    name = Column(String(255), nullable=False)
+    address = Column(String(255), nullable=True)
+    city = Column(String(100), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)  # lat/lon
+    profile_image_path = Column(String(255), nullable=True)
+
+    # --- Account Settings ---
     role = Column(Enum(UserRole), nullable=False)
-    name = Column(String, nullable=False)
-    phone_number = Column(String)
-    is_phone_verified = Column(Boolean, default=False)
-    address = Column(String)
-    city = Column(String)
-    postal_code = Column(String)
-    province_code = Column(String(2), ForeignKey("canadian_provinces.code"))
-    status = Column(Enum(UserStatus), default=UserStatus.active)
+    status = Column(Enum(UserStatus), default=UserStatus.active, nullable=False)
+    preferred_contact_method = Column(Enum(ContactMethod), default=ContactMethod.in_app)
+
+    # --- Verification ---
     is_email_verified = Column(Boolean, default=False)
+    is_phone_verified = Column(Boolean, default=False)
+    verification_token = Column(String(255), nullable=True)
+    password_reset_token = Column(String(255), nullable=True)
+    password_reset_expires = Column(DateTime(timezone=True), nullable=True)
 
-    last_login_at = Column(DateTime(timezone=True))
-    password_reset_token = Column(UUID(as_uuid=True))
-    password_reset_expires = Column(DateTime(timezone=True))
-    verification_token = Column(UUID(as_uuid=True))
-    verification_expires = Column(DateTime(timezone=True))
-    deleted_at = Column(DateTime(timezone=True))
+    # --- Audit ---
+    last_login_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    provider = relationship("Provider", back_populates="user", uselist=False)
-    certifications = relationship("ProviderCertification", back_populates="provider")
-    services = relationship("Service", back_populates="provider")
-    bookings_as_client = relationship("Booking", foreign_keys="Booking.client_id")
-    bookings_as_provider = relationship("Booking", foreign_keys="Booking.provider_id")
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email}, role={self.role}, status={self.status})>"

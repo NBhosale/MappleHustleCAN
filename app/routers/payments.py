@@ -1,19 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+import uuid
+
 from app.db import SessionLocal
-from app.models.payments import Payment, Refund
 from app.schemas.payments import (
-    PaymentCreate,
-    PaymentResponse,
-    RefundCreate,
-    RefundResponse,
-    PaymentStatus,
+    PaymentCreate, PaymentResponse,
+    RefundCreate, RefundResponse,
 )
-from app.utils.deps import get_current_user, require_admin
+from app.services import payments as payment_service
+from app.utils.deps import require_client, require_admin
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-# Dependency
+
+# --- Dependency: DB session ---
 def get_db():
     db = SessionLocal()
     try:
@@ -22,88 +23,49 @@ def get_db():
         db.close()
 
 
-# --- Create Payment (Booking or Order) ---
+# --- Payments ---
 @router.post("/", response_model=PaymentResponse)
 def create_payment(
     payment: PaymentCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_client),
 ):
-    new_payment = Payment(
-        amount=payment.amount,
-        currency=payment.currency,
-        status=payment.status,
-        booking_id=payment.booking_id,
-        order_id=payment.order_id,
-        stripe_transaction_id=payment.stripe_transaction_id,
-    )
-    db.add(new_payment)
-    db.commit()
-    db.refresh(new_payment)
-    return new_payment
+    try:
+        return payment_service.create_payment(db, payment, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-# --- List My Payments ---
-@router.get("/me", response_model=list[PaymentResponse])
-def list_my_payments(
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    return db.query(Payment).filter(
-        (Payment.booking_id != None) | (Payment.order_id != None)
-    ).all()
-
-
-# --- Update Payment Status (Admin only) ---
-@router.put("/{payment_id}/status", response_model=PaymentResponse)
-def update_payment_status(
-    payment_id: str,
-    status: PaymentStatus,
-    db: Session = Depends(get_db),
-    current_admin=Depends(require_admin),
-):
-    payment = db.query(Payment).filter(Payment.id == payment_id).first()
+@router.get("/{payment_id}", response_model=PaymentResponse)
+def get_payment(payment_id: uuid.UUID, db: Session = Depends(get_db)):
+    payment = payment_service.get_payment(db, payment_id)
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
-
-    payment.status = status
-    db.commit()
-    db.refresh(payment)
     return payment
 
 
-# --- Create Refund ---
-@router.post("/refunds", response_model=RefundResponse)
+@router.get("/", response_model=List[PaymentResponse])
+def list_my_payments(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_client),
+):
+    return payment_service.list_payments_by_client(db, current_user.id)
+
+
+# --- Refunds ---
+@router.post("/{payment_id}/refunds", response_model=RefundResponse)
 def create_refund(
+    payment_id: uuid.UUID,
     refund: RefundCreate,
     db: Session = Depends(get_db),
-    current_admin=Depends(require_admin),
+    current_user=Depends(require_admin),
 ):
-    payment = db.query(Payment).filter(Payment.id == refund.payment_id).first()
-    if not payment:
-        raise HTTPException(status_code=404, detail="Payment not found")
-
-    new_refund = Refund(
-        payment_id=refund.payment_id,
-        amount=refund.amount,
-        reason=refund.reason,
-        stripe_refund_id=refund.stripe_refund_id,
-    )
-    db.add(new_refund)
-
-    # Update payment with refund reference
-    payment.refund_id = new_refund.id
-    payment.status = PaymentStatus.refunded
-
-    db.commit()
-    db.refresh(new_refund)
-    return new_refund
+    try:
+        return payment_service.create_refund(db, payment_id, refund)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-# --- List Refunds ---
-@router.get("/refunds", response_model=list[RefundResponse])
-def list_refunds(
-    db: Session = Depends(get_db),
-    current_admin=Depends(require_admin),
-):
-    return db.query(Refund).all()
+@router.get("/{payment_id}/refunds", response_model=List[RefundResponse])
+def list_refunds(payment_id: uuid.UUID, db: Session = Depends(get_db)):
+    return payment_service.list_refunds(db, payment_id)

@@ -13,3 +13,4 @@ from app.models.notifications import Notification, NotificationLog, UserNotifica
 from app.models.subscriptions import Subscription, Referral, LoyaltyPoint  # noqa
 from app.models.system import Session, SystemEvent, TaxRule, ProviderMetric  # noqa
 from app.models.tokens import RefreshToken  # noqa
+from app.models.provinces import CanadianProvince  # noqa

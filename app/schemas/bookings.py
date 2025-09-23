@@ -36,6 +36,8 @@ class BookingResponse(BookingBase):
     client_id: uuid.UUID
     provider_id: uuid.UUID
     service_id: uuid.UUID
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         orm_mode = True

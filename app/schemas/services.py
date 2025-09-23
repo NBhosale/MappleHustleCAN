@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import uuid
 from enum import Enum
+from datetime import datetime, date, time
 
 
 # --- Existing Provider/Certification Enums & Schemas (already in your file) ---
@@ -27,8 +28,8 @@ class ProviderResponse(ProviderBase):
 class ProviderCertificationBase(BaseModel):
     title: str
     issuer: Optional[str]
-    issue_date: Optional[str]
-    expiry_date: Optional[str]
+    issue_date: Optional[date]
+    expiry_date: Optional[date]
     document_path: Optional[str]
 
 
@@ -74,6 +75,9 @@ class PortfolioCreate(PortfolioBase):
 class PortfolioResponse(PortfolioBase):
     id: uuid.UUID
     provider_id: uuid.UUID
+    created_at: datetime
+    updated_at: Optional[datetime]
+    deleted_at: Optional[datetime]
 
     class Config:
         orm_mode = True
@@ -97,6 +101,9 @@ class ServiceCreate(ServiceBase):
 class ServiceResponse(ServiceBase):
     id: uuid.UUID
     provider_id: uuid.UUID
+    created_at: datetime
+    updated_at: Optional[datetime]
+    deleted_at: Optional[datetime]
 
     class Config:
         orm_mode = True
@@ -104,9 +111,9 @@ class ServiceResponse(ServiceBase):
 
 # --- Availability Schemas ---
 class AvailabilityBase(BaseModel):
-    date: str  # ISO date string
-    start_time: str  # "HH:MM:SS"
-    end_time: str
+    date: date
+    start_time: time
+    end_time: time
     status: AvailabilityStatus = AvailabilityStatus.available
     recurrence_rule: Optional[str]
 
@@ -118,6 +125,8 @@ class AvailabilityCreate(AvailabilityBase):
 class AvailabilityResponse(AvailabilityBase):
     id: uuid.UUID
     provider_id: uuid.UUID
+    created_at: datetime
+    updated_at: Optional[datetime]
 
     class Config:
         orm_mode = True

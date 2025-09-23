@@ -1,10 +1,11 @@
 import uuid
 import enum
-from sqlalchemy import Column, String, Text, Boolean, Enum, DateTime, ForeignKey, Numeric
-from sqlalchemy.dialects.postgresql import UUID, JSONB, TSRANGE
+from sqlalchemy import Column, String, Text, Boolean, Enum, DateTime, ForeignKey, Numeric, Date, Time
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
+#from app.models.enums import AvailabilityStatus
 
 
 
@@ -68,11 +69,15 @@ class Availability(Base):
     __tablename__ = "availability"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    provider_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    daterange = Column(TSRANGE, nullable=False)
-    recurrence_rule = Column(String)  # iCal RRULE format
-    status = Column(Enum(AvailabilityStatus), default=AvailabilityStatus.available)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    provider_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
-    provider = relationship("User")
+    # ✅ Split fields instead of TSRANGE
+    date = Column(Date, nullable=False)
+    start_time = Column(Time, nullable=False)
+    end_time = Column(Time, nullable=False)
+
+    status = Column(Enum(AvailabilityStatus), default=AvailabilityStatus.available, nullable=False)
+    recurrence_rule = Column(String, nullable=True)  # e.g., "FREQ=WEEKLY;BYDAY=MO"
+
+    def __repr__(self):
+        return f"<Availability(provider_id={self.provider_id}, date={self.date}, start={self.start_time}, end={self.end_time}, status={self.status})>"

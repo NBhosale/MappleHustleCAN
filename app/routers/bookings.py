@@ -1,13 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+import uuid
+
 from app.db import SessionLocal
-from app.models.bookings import Booking
-from app.schemas.bookings import BookingCreate, BookingResponse, BookingStatus
-from app.utils.deps import get_current_user, require_client, require_provider
+from app.schemas.bookings import (
+    BookingCreate, BookingResponse
+)
+from app.services import bookings as booking_service
+from app.utils.deps import require_client, require_provider, get_current_user
+from app.utils.validation import (
+    validate_booking_request,
+    ValidationError
+)
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
-# Dependency
+
+# --- Dependency: DB session ---
 def get_db():
     db = SessionLocal()
     try:
@@ -15,68 +25,73 @@ def get_db():
     finally:
         db.close()
 
-# --- Create Booking (Client initiates) ---
+
+# --- Create Booking (Client only) ---
 @router.post("/", response_model=BookingResponse)
 def create_booking(
     booking: BookingCreate,
     db: Session = Depends(get_db),
     current_user=Depends(require_client),
 ):
-    if str(current_user.id) != str(booking.client_id):
-        raise HTTPException(status_code=403, detail="You can only book as yourself")
-
-    new_booking = Booking(
-        client_id=booking.client_id,
-        provider_id=booking.provider_id,
-        service_id=booking.service_id,
-        start_date=booking.start_date,
-        end_date=booking.end_date,
-        total_amount=booking.total_amount,
-        platform_fee=booking.platform_fee,
-        tip=booking.tip,
-        cancellation_reason=booking.cancellation_reason,
-        status=booking.status,
-    )
-    db.add(new_booking)
-    db.commit()
-    db.refresh(new_booking)
-    return new_booking
+    try:
+        # Comprehensive booking validation
+        validate_booking_request(
+            db,
+            str(current_user.id),
+            str(booking.provider_id),
+            str(booking.service_id),
+            booking.start_date,
+            booking.start_time,
+            booking.end_time
+        )
+        
+        return booking_service.create_booking(db, booking, current_user.id)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e.detail))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-# --- List My Bookings (Client) ---
-@router.get("/me", response_model=list[BookingResponse])
-def my_bookings(
+# --- Get Booking by ID ---
+@router.get("/{booking_id}", response_model=BookingResponse)
+def get_booking(
+    booking_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    booking = booking_service.get_booking(db, booking_id, current_user.id)
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return booking
+
+
+# --- List Client Bookings ---
+@router.get("/client/me", response_model=List[BookingResponse])
+def list_client_bookings(
     db: Session = Depends(get_db),
     current_user=Depends(require_client),
 ):
-    return db.query(Booking).filter(Booking.client_id == current_user.id).all()
+    return booking_service.list_client_bookings(db, current_user.id)
 
 
 # --- List Provider Bookings ---
-@router.get("/provider/me", response_model=list[BookingResponse])
-def provider_bookings(
+@router.get("/provider/me", response_model=List[BookingResponse])
+def list_provider_bookings(
     db: Session = Depends(get_db),
     current_user=Depends(require_provider),
 ):
-    return db.query(Booking).filter(Booking.provider_id == current_user.id).all()
+    return booking_service.list_provider_bookings(db, current_user.id)
 
 
-# --- Update Booking Status (Provider) ---
-@router.put("/{booking_id}/status", response_model=BookingResponse)
+# --- Update Booking Status (Provider only) ---
+@router.post("/{booking_id}/status", response_model=BookingResponse)
 def update_booking_status(
-    booking_id: str,
-    status: BookingStatus,
+    booking_id: uuid.UUID,
+    status: str,
     db: Session = Depends(get_db),
     current_user=Depends(require_provider),
 ):
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found")
-
-    if str(booking.provider_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You can only update your own bookings")
-
-    booking.status = status
-    db.commit()
-    db.refresh(booking)
-    return booking
+    try:
+        return booking_service.update_booking_status(db, booking_id, status, current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -15,7 +15,7 @@ class SeverityLevel(str, Enum):
 # --- Sessions ---
 class SessionBase(BaseModel):
     token_hash: str
-    expires: str
+    expires: datetime
     context: Dict = {}
 
 
@@ -62,7 +62,7 @@ class TaxRuleBase(BaseModel):
 
 class TaxRuleCreate(TaxRuleBase):
     province_code: str
-    effective_date: Optional[str]
+    effective_date: Optional[date]
 
 
 class TaxRuleResponse(TaxRuleBase):

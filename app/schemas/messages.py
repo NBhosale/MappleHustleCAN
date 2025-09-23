@@ -19,6 +19,7 @@ class MessageAttachmentCreate(MessageAttachmentBase):
 class MessageAttachmentResponse(MessageAttachmentBase):
     id: uuid.UUID
     message_id: uuid.UUID
+    created_at: datetime
 
     class Config:
         orm_mode = True

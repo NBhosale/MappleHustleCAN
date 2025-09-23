@@ -39,8 +39,8 @@ class OrderItemResponse(OrderItemBase):
 class OrderShipmentBase(BaseModel):
     carrier: Optional[str]
     tracking_number: Optional[str]
-    shipped_at: Optional[str]
-    delivered_at: Optional[str]
+    shipped_at: Optional[datetime]
+    delivered_at: Optional[datetime]
 
 
 class OrderShipmentCreate(OrderShipmentBase):
@@ -75,6 +75,9 @@ class OrderResponse(OrderBase):
     client_id: uuid.UUID
     items: List[OrderItemResponse] = []
     shipments: List[OrderShipmentResponse] = []
+    created_at: datetime
+    updated_at: Optional[datetime]
+    deleted_at: Optional[datetime]
 
     class Config:
         orm_mode = True

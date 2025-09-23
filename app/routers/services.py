@@ -1,20 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+import uuid
+
 from app.db import SessionLocal
-from app.models.services import Service, Portfolio, Availability
 from app.schemas.services import (
-    ServiceCreate,
-    ServiceResponse,
-    PortfolioCreate,
-    PortfolioResponse,
-    AvailabilityCreate,
-    AvailabilityResponse,
+    ProviderResponse,
+    ProviderCertificationCreate, ProviderCertificationResponse,
+    PortfolioCreate, PortfolioResponse,
+    ServiceCreate, ServiceResponse,
+    AvailabilityCreate, AvailabilityResponse,
 )
-from app.utils.deps import get_current_user, require_provider
+from app.services import services as service_service
+from app.utils.deps import require_provider, get_current_user
+from app.utils.validation import (
+    validate_service_availability_conflicts,
+    validate_availability_time_slot,
+    ValidationError
+)
 
-router = APIRouter(prefix="/services", tags=["Services"])
+router = APIRouter(prefix="/services", tags=["Services & Providers"])
 
-# Dependency
+
+# --- Dependency: DB session ---
 def get_db():
     db = SessionLocal()
     try:
@@ -22,80 +30,96 @@ def get_db():
     finally:
         db.close()
 
-# --- Service CRUD ---
+
+# --- Provider Profile ---
+@router.get("/provider/me", response_model=ProviderResponse)
+def get_my_provider_profile(
+    db: Session = Depends(get_db),
+    current_user=Depends(require_provider),
+):
+    return service_service.get_provider_profile(db, current_user.id)
+
+
+# --- Provider Certifications ---
+@router.post("/provider/certifications", response_model=ProviderCertificationResponse)
+def add_certification(
+    certification: ProviderCertificationCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_provider),
+):
+    try:
+        return service_service.add_certification(db, current_user.id, certification)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/provider/{provider_id}/certifications", response_model=List[ProviderCertificationResponse])
+def list_certifications(provider_id: uuid.UUID, db: Session = Depends(get_db)):
+    return service_service.list_certifications(db, provider_id)
+
+
+# --- Portfolio ---
+@router.post("/provider/portfolio", response_model=PortfolioResponse)
+def add_portfolio_item(
+    portfolio: PortfolioCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_provider),
+):
+    return service_service.add_portfolio_item(db, current_user.id, portfolio)
+
+
+@router.get("/provider/{provider_id}/portfolio", response_model=List[PortfolioResponse])
+def list_portfolio(provider_id: uuid.UUID, db: Session = Depends(get_db)):
+    return service_service.list_portfolio(db, provider_id)
+
+
+# --- Services ---
 @router.post("/", response_model=ServiceResponse)
 def create_service(
     service: ServiceCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_provider)
+    current_user=Depends(require_provider),
 ):
-    new_service = Service(
-        provider_id=current_user.id,
-        type=service.type,
-        title=service.title,
-        description=service.description,
-        terms=service.terms,
-        hourly_rate=service.hourly_rate,
-        daily_rate=service.daily_rate,
-        is_featured=service.is_featured,
-    )
-    db.add(new_service)
-    db.commit()
-    db.refresh(new_service)
-    return new_service
+    return service_service.create_service(db, current_user.id, service)
 
-@router.get("/", response_model=list[ServiceResponse])
+
+@router.get("/", response_model=List[ServiceResponse])
 def list_services(db: Session = Depends(get_db)):
-    return db.query(Service).all()
+    return service_service.list_services(db)
 
-# --- Portfolio ---
-@router.post("/portfolio", response_model=PortfolioResponse)
-def add_portfolio(
-    portfolio: PortfolioCreate,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_provider)
-):
-    new_portfolio = Portfolio(
-        provider_id=current_user.id,
-        title=portfolio.title,
-        description=portfolio.description,
-        images=portfolio.images,
-    )
-    db.add(new_portfolio)
-    db.commit()
-    db.refresh(new_portfolio)
-    return new_portfolio
 
-@router.get("/portfolio/me", response_model=list[PortfolioResponse])
-def my_portfolio(
-    db: Session = Depends(get_db),
-    current_user=Depends(require_provider)
-):
-    return db.query(Portfolio).filter(Portfolio.provider_id == current_user.id).all()
+@router.get("/provider/{provider_id}", response_model=List[ServiceResponse])
+def list_provider_services(provider_id: uuid.UUID, db: Session = Depends(get_db)):
+    return service_service.list_provider_services(db, provider_id)
+
 
 # --- Availability ---
 @router.post("/availability", response_model=AvailabilityResponse)
-def set_availability(
+def add_availability(
     availability: AvailabilityCreate,
     db: Session = Depends(get_db),
-    current_user=Depends(require_provider)
+    current_user=Depends(require_provider),
 ):
-    new_availability = Availability(
-        provider_id=current_user.id,
-        date=availability.date,
-        start_time=availability.start_time,
-        end_time=availability.end_time,
-        status=availability.status,
-        recurrence_rule=availability.recurrence_rule,
-    )
-    db.add(new_availability)
-    db.commit()
-    db.refresh(new_availability)
-    return new_availability
+    try:
+        # Validate time slot
+        validate_availability_time_slot(availability.start_time, availability.end_time)
+        
+        # Validate availability conflicts
+        validate_service_availability_conflicts(
+            db, 
+            str(current_user.id), 
+            availability.date, 
+            availability.start_time, 
+            availability.end_time
+        )
+        
+        return service_service.add_availability(db, current_user.id, availability)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e.detail))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/availability/me", response_model=list[AvailabilityResponse])
-def my_availability(
-    db: Session = Depends(get_db),
-    current_user=Depends(require_provider)
-):
-    return db.query(Availability).filter(Availability.provider_id == current_user.id).all()
+
+@router.get("/provider/{provider_id}/availability", response_model=List[AvailabilityResponse])
+def list_availability(provider_id: uuid.UUID, db: Session = Depends(get_db)):
+    return service_service.list_availability(db, provider_id)

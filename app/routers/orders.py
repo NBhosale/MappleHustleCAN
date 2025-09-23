@@ -1,21 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
+import uuid
+
 from app.db import SessionLocal
-from app.models.orders import Order, OrderItem, OrderShipment
 from app.schemas.orders import (
-    OrderCreate,
-    OrderResponse,
-    OrderItemCreate,
-    OrderItemResponse,
-    OrderShipmentCreate,
-    OrderShipmentResponse,
-    OrderStatus,
+    OrderCreate, OrderResponse,
+    OrderItemResponse, OrderShipmentCreate, OrderShipmentResponse,
 )
-from app.utils.deps import get_current_user, require_client, require_provider
+from app.services import orders as order_service
+from app.utils.deps import require_client, require_provider
+from app.utils.validation import (
+    validate_order_request,
+    ValidationError
+)
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
-# Dependency
+
+# --- Dependency: DB session ---
 def get_db():
     db = SessionLocal()
     try:
@@ -24,95 +27,60 @@ def get_db():
         db.close()
 
 
-# --- Place Order (Client) ---
+# --- Orders ---
 @router.post("/", response_model=OrderResponse)
 def create_order(
     order: OrderCreate,
     db: Session = Depends(get_db),
     current_user=Depends(require_client),
 ):
-    if str(order.client_id) != str(current_user.id):
-        raise HTTPException(status_code=403, detail="You can only place orders for yourself")
-
-    new_order = Order(
-        client_id=order.client_id,
-        total_amount=order.total_amount,
-        tax_amount=order.tax_amount,
-        platform_fee=order.platform_fee,
-        status=order.status,
-        tracking_number=order.tracking_number,
-        shipped_at=order.shipped_at,
-    )
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
-
-    # Add order items
-    for item in order.items:
-        new_item = OrderItem(
-            order_id=new_order.id,
-            item_id=item.item_id,
-            quantity=item.quantity,
-            price=item.price,
-        )
-        db.add(new_item)
-    db.commit()
-    db.refresh(new_order)
-
-    return new_order
+    try:
+        # Validate order request (inventory, user status, etc.)
+        validate_order_request(db, str(current_user.id), order.items)
+        
+        return order_service.create_order(db, order, current_user.id)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e.detail))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-# --- View My Orders (Client) ---
-@router.get("/me", response_model=list[OrderResponse])
-def my_orders(
+@router.get("/", response_model=List[OrderResponse])
+def list_my_orders(
     db: Session = Depends(get_db),
     current_user=Depends(require_client),
 ):
-    return db.query(Order).filter(Order.client_id == current_user.id).all()
+    return order_service.list_orders_by_client(db, current_user.id)
 
 
-# --- Add Shipment (Provider/Admin) ---
+@router.get("/{order_id}", response_model=OrderResponse)
+def get_order(order_id: uuid.UUID, db: Session = Depends(get_db)):
+    order = order_service.get_order(db, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+
+# --- Order Items ---
+@router.get("/{order_id}/items", response_model=List[OrderItemResponse])
+def list_order_items(order_id: uuid.UUID, db: Session = Depends(get_db)):
+    return order_service.list_order_items(db, order_id)
+
+
+# --- Shipments ---
 @router.post("/{order_id}/shipments", response_model=OrderShipmentResponse)
-def add_shipment(
-    order_id: str,
+def create_shipment(
+    order_id: uuid.UUID,
     shipment: OrderShipmentCreate,
     db: Session = Depends(get_db),
     current_user=Depends(require_provider),
 ):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    new_shipment = OrderShipment(
-        order_id=order_id,
-        carrier=shipment.carrier,
-        tracking_number=shipment.tracking_number,
-        shipped_at=shipment.shipped_at,
-        delivered_at=shipment.delivered_at,
-    )
-    db.add(new_shipment)
-
-    # Update order status
-    order.status = OrderStatus.shipped
-    db.commit()
-    db.refresh(new_shipment)
-
-    return new_shipment
+    try:
+        return order_service.create_shipment(db, order_id, shipment)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-# --- Update Order Status (Admin/Provider) ---
-@router.put("/{order_id}/status", response_model=OrderResponse)
-def update_order_status(
-    order_id: str,
-    status: OrderStatus,
-    db: Session = Depends(get_db),
-    current_user=Depends(require_provider),
-):
-    order = db.query(Order).filter(Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    order.status = status
-    db.commit()
-    db.refresh(order)
-    return order
+@router.get("/{order_id}/shipments", response_model=List[OrderShipmentResponse])
+def list_shipments(order_id: uuid.UUID, db: Session = Depends(get_db)):
+    return order_service.list_shipments(db, order_id)

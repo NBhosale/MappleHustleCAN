@@ -1,9 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from jose import JWTError, ExpiredSignatureError
+from app.core.logging import setup_logging
+from app.core.lifecycle import lifespan
+from app.core.logging_context import LoggingContext, get_logger
+from app.core.error_tracking import error_tracker, track_errors, track_async_errors
+from app.core.performance_monitoring import performance_monitor, monitor_performance, start_performance_monitoring
+import time
+setup_logging()
 
 from app.core.exceptions import jwt_exception_handler, validation_exception_handler
 from app.core.middleware import AuthLoggingMiddleware
+from app.core.validation_middleware import BusinessRuleValidationMiddleware
+from app.core.security import configure_security, get_security_config
+from app.core.security_monitoring import initialize_security_monitoring, get_security_config
 from app.routers import (
     users,
     services,
@@ -13,9 +23,19 @@ from app.routers import (
     payments,
     messages,
     notifications,
+    provinces,
+    uploads,
+    search,
+    bulk,
+    security,
+    health,
 )
 
-# ✅ Initialize FastAPI with branding
+from app.core.middleware import limiter, rate_limit_exceeded_handler, SecurityHeadersMiddleware
+from slowapi.errors import RateLimitExceeded
+
+
+# ✅ Initialize FastAPI with branding and lifecycle management
 app = FastAPI(
     title="Maple Hussle API",
     description="""
@@ -30,6 +50,8 @@ This backend powers the Maple Hussle platform for:
 - 🛍️ Marketplace items and orders  
 - 💳 Payments and refunds  
 - 💬 Messaging and notifications  
+- 🏥 Health checks and monitoring
+- 🔒 Security features and monitoring
 
 All endpoints are secured with JWT authentication.  
 Use the `/users/login` endpoint to obtain your tokens.
@@ -56,11 +78,95 @@ Use the `/users/login` endpoint to obtain your tokens.
         {"name": "Payments", "description": "Payment processing and refunds"},
         {"name": "Messages", "description": "Client ↔ Provider messaging"},
         {"name": "Notifications", "description": "System notifications"},
+        {"name": "Health", "description": "Health checks and system monitoring"},
+        {"name": "Security", "description": "Security monitoring and admin dashboard"},
     ],
+    lifespan=lifespan,  # Add lifecycle management
 )
+
+# ✅ Configure security
+security_config = get_security_config()
+configure_security(app, security_config)
+
+# ✅ Initialize security monitoring
+monitoring_config = {
+    "enabled": True,
+    "anomaly_detection": True,
+    "alerting": True,
+    "email_alerts": False,  # Set to True in production
+    "webhook_alerts": False,  # Set to True in production
+    "thresholds": {
+        "brute_force_attempts": 10,
+        "ddos_requests": 100,
+        "sql_injection_attempts": 5
+    },
+    "alert_cooldown": 300  # 5 minutes
+}
+initialize_security_monitoring(monitoring_config)
+
+# ✅ Start performance monitoring
+start_performance_monitoring()
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # ✅ Register middleware
 app.add_middleware(AuthLoggingMiddleware)
+app.add_middleware(BusinessRuleValidationMiddleware)
+
+# ✅ Add request logging and performance monitoring middleware
+@app.middleware("http")
+async def logging_and_performance_middleware(request: Request, call_next):
+    """Middleware for request logging and performance monitoring"""
+    start_time = time.time()
+    
+    # Extract user info from request if available
+    user_id = None
+    if hasattr(request.state, 'user') and request.state.user:
+        user_id = str(request.state.user.id)
+    
+    # Create logging context
+    with LoggingContext(user_id=user_id) as context:
+        try:
+            # Process request
+            response = await call_next(request)
+            
+            # Calculate duration
+            duration = time.time() - start_time
+            
+            # Record performance metrics
+            performance_monitor.record_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration=duration
+            )
+            
+            # Log API request
+            from app.core.logging_context import log_api_request
+            log_api_request(
+                method=request.method,
+                path=request.url.path,
+                status_code=response.status_code,
+                duration=duration,
+                user_id=user_id
+            )
+            
+            return response
+            
+        except Exception as e:
+            # Record error
+            duration = time.time() - start_time
+            error_tracker.capture_exception(e, {
+                "method": request.method,
+                "path": request.url.path,
+                "duration": duration,
+                "user_id": user_id
+            })
+            raise
+
 
 # ✅ Register exception handlers
 app.add_exception_handler(JWTError, jwt_exception_handler)
@@ -69,6 +175,7 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # ✅ Include routers
 app.include_router(users.router)
+app.include_router(provinces.router)
 app.include_router(services.router)
 app.include_router(bookings.router)
 app.include_router(items.router)
@@ -76,6 +183,11 @@ app.include_router(orders.router)
 app.include_router(payments.router)
 app.include_router(messages.router)
 app.include_router(notifications.router)
+app.include_router(uploads.router)
+app.include_router(search.router)
+app.include_router(bulk.router)
+app.include_router(security.router)
+app.include_router(health.router)
 
 # ✅ Root endpoint
 @app.get("/")

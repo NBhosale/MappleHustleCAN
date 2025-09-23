@@ -1,4 +1,3 @@
-import datetime
 from pydantic import BaseModel
 from typing import Optional, Dict
 import uuid
@@ -43,6 +42,7 @@ class NotificationResponse(NotificationBase):
     user_id: uuid.UUID
     sent_at: Optional[datetime]
     delivered: bool
+    created_at: datetime
 
     class Config:
         orm_mode = True
@@ -64,6 +64,7 @@ class UserNotificationPreferenceUpdate(UserNotificationPreferenceBase):
 
 class UserNotificationPreferenceResponse(UserNotificationPreferenceBase):
     user_id: uuid.UUID
+    created_at: datetime
     updated_at: Optional[datetime]
 
     class Config:
@@ -77,7 +78,7 @@ class NotificationLogResponse(BaseModel):
     channel: NotificationChannel
     status: str
     response: Optional[Dict]
-    created_at: Optional[datetime]
+    created_at: datetime
 
     class Config:
         orm_mode = True
