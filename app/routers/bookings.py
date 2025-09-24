@@ -1,18 +1,14 @@
+import uuid
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-import uuid
 
 from app.db import SessionLocal
-from app.schemas.bookings import (
-    BookingCreate, BookingResponse
-)
-from app.services import bookings as booking_service
-from app.utils.deps import require_client, require_provider, get_current_user
-from app.utils.validation import (
-    validate_booking_request,
-    ValidationError
-)
+from app.schemas.bookings import BookingCreate, BookingResponse
+from app.services import booking as booking_service
+from app.utils.deps import get_current_user, require_client, require_provider
+from app.utils.validation import ValidationError, validate_booking_request
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -43,7 +39,7 @@ def create_booking(
             booking.start_date,
             booking.end_date
         )
-        
+
         return booking_service.create_booking(
             db=db,
             client_id=current_user.id,
@@ -101,6 +97,7 @@ def update_booking_status(
     current_user=Depends(require_provider),
 ):
     try:
-        return booking_service.update_booking_status(db, booking_id, status, current_user.id)
+        return booking_service.update_booking_status(
+            db, booking_id, status, current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class CanadianProvinceResponse(BaseModel):
     code: str
     name: str

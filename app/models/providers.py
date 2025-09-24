@@ -1,9 +1,19 @@
-import uuid
 import enum
-from sqlalchemy import Column, String, Boolean, Enum, DateTime, ForeignKey, JSON
+import uuid
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    String,
+)
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+
 from app.db.base_class import Base
 
 
@@ -16,8 +26,10 @@ class VerificationStatus(enum.Enum):
 class Provider(Base):
     __tablename__ = "providers"
 
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    verification_status = Column(Enum(VerificationStatus), default=VerificationStatus.pending)
+    user_id = Column(UUID(as_uuid=True), ForeignKey(
+        "users.id", ondelete="CASCADE"), primary_key=True)
+    verification_status = Column(
+        Enum(VerificationStatus), default=VerificationStatus.pending)
     id_uploads = Column(JSON, default=list)
     background_check_result = Column(JSON)
 
@@ -32,7 +44,8 @@ class ProviderCertification(Base):
     __tablename__ = "provider_certifications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    provider_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
+    provider_id = Column(UUID(as_uuid=True), ForeignKey(
+        "users.id", ondelete="CASCADE"))
     title = Column(String, nullable=False)
     issuer = Column(String)
     issue_date = Column(DateTime)

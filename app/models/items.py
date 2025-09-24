@@ -1,8 +1,30 @@
 import uuid
-from sqlalchemy import Column, String, Text, Boolean, DateTime, ForeignKey, Numeric, Integer
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from enum import Enum
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 from app.db.base_class import Base
+
+
+class ItemStatus(str, Enum):
+    """Item status enumeration"""
+    DRAFT = "draft"
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    SOLD_OUT = "sold_out"
+    DISCONTINUED = "discontinued"
 
 
 class ItemCategory(Base):
@@ -18,8 +40,10 @@ class Item(Base):
     __tablename__ = "items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    provider_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
-    category_id = Column(UUID(as_uuid=True), ForeignKey("item_categories.id", ondelete="SET NULL"))
+    provider_id = Column(UUID(as_uuid=True), ForeignKey(
+        "users.id", ondelete="CASCADE"))
+    category_id = Column(UUID(as_uuid=True), ForeignKey(
+        "item_categories.id", ondelete="SET NULL"))
     name = Column(String, nullable=False)
     description = Column(Text)
     price = Column(Numeric(10, 2), nullable=False)
@@ -31,12 +55,17 @@ class Item(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
+    # Relationships
+    seller = relationship("User", back_populates="items")
+    category = relationship("ItemCategory")
+
 
 class ItemTag(Base):
     __tablename__ = "item_tags"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    item_id = Column(UUID(as_uuid=True), ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    item_id = Column(UUID(as_uuid=True), ForeignKey(
+        "items.id", ondelete="CASCADE"), nullable=False)
     tag = Column(String(50), nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

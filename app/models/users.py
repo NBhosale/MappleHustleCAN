@@ -1,12 +1,14 @@
 import uuid
-from sqlalchemy import Column, String, Enum, Boolean, TIMESTAMP, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.types import DateTime
-from sqlalchemy.sql import func
+
 from geoalchemy2 import Geography
+from sqlalchemy import TIMESTAMP, Boolean, Column, Enum, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from sqlalchemy.types import DateTime
 
 from app.db.base import Base
-from app.models.enums import UserRole, UserStatus, ContactMethod
+from app.models.enums import ContactMethod, UserRole, UserStatus
 
 
 class User(Base):
@@ -23,13 +25,16 @@ class User(Base):
     province_code = Column(String(2), nullable=True)  # Canadian province code
     postal_code = Column(String(20), nullable=True)
     phone_number = Column(String(20), nullable=True)
-    location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)  # lat/lon
+    location = Column(Geography(geometry_type="POINT",
+                      srid=4326), nullable=True)  # lat/lon
     profile_image_path = Column(String(255), nullable=True)
 
     # --- Account Settings ---
     role = Column(Enum(UserRole), nullable=False)
-    status = Column(Enum(UserStatus), default=UserStatus.active, nullable=False)
-    preferred_contact_method = Column(Enum(ContactMethod), default=ContactMethod.in_app)
+    status = Column(Enum(UserStatus),
+                    default=UserStatus.active, nullable=False)
+    preferred_contact_method = Column(
+        Enum(ContactMethod), default=ContactMethod.in_app)
 
     # --- Verification ---
     is_email_verified = Column(Boolean, default=False)
@@ -42,7 +47,30 @@ class User(Base):
     last_login_at = Column(TIMESTAMP(timezone=True), nullable=True)
     deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True),
+                        server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    services = relationship(
+        "Service", back_populates="provider", cascade="all, delete-orphan")
+    items = relationship("Item", back_populates="seller",
+                         cascade="all, delete-orphan")
+    bookings_as_client = relationship(
+        "Booking", foreign_keys="Booking.client_id", back_populates="client")
+    bookings_as_provider = relationship(
+        "Booking",
+        foreign_keys="Booking.provider_id",
+        back_populates="provider")
+    provider = relationship("Provider", back_populates="user",
+                            uselist=False, cascade="all, delete-orphan")
+    certifications = relationship(
+        "ProviderCertification",
+        back_populates="provider",
+        cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<User(id={self.id}, email={self.email}, role={self.role}, status={self.status})>"
+        return f"<User(id={
+            self.id}, email={
+            self.email}, role={
+            self.role}, status={
+                self.status})>"

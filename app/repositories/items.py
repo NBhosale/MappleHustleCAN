@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
+
 from app.models.items import Item, ItemCategory, ItemTag
-from uuid import UUID
 
 
 def create_category(db: Session, category: ItemCategory) -> ItemCategory:

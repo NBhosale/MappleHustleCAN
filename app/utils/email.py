@@ -1,10 +1,11 @@
 # app/utils/email.py
-from fastapi import BackgroundTasks
-from typing import Optional
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Optional
+
+from fastapi import BackgroundTasks
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
@@ -13,7 +14,8 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 FROM_EMAIL = os.getenv("FROM_EMAIL", "no-reply@maplehussle.com")
 
 
-def send_email(to_email: str, subject: str, body: str, background_tasks: Optional[BackgroundTasks] = None):
+def send_email(to_email: str, subject: str, body: str,
+               background_tasks: Optional[BackgroundTasks] = None):
     """Send an email (sync or async via FastAPI BackgroundTasks)."""
     def _send():
         msg = MIMEMultipart()

@@ -1,9 +1,17 @@
-from sqlalchemy.orm import Session
-from app.models.notifications import Notification, UserNotificationPreference, NotificationLog
 from uuid import UUID
 
+from sqlalchemy.orm import Session
 
-def create_notification(db: Session, notification: Notification) -> Notification:
+from app.models.notifications import (
+    Notification,
+    NotificationLog,
+    UserNotificationPreference,
+)
+
+
+def create_notification(
+        db: Session,
+        notification: Notification) -> Notification:
     db.add(notification)
     db.commit()
     db.refresh(notification)
@@ -11,7 +19,8 @@ def create_notification(db: Session, notification: Notification) -> Notification
 
 
 def update_preferences(db: Session, user_id: UUID, prefs: dict):
-    pref = db.query(UserNotificationPreference).filter(UserNotificationPreference.user_id == user_id).first()
+    pref = db.query(UserNotificationPreference).filter(
+        UserNotificationPreference.user_id == user_id).first()
     if not pref:
         pref = UserNotificationPreference(user_id=user_id, **prefs)
         db.add(pref)

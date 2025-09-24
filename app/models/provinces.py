@@ -1,5 +1,7 @@
 from sqlalchemy import Column, String
-from app.db import Base
+
+from app.db.base_class import Base
+
 
 class CanadianProvince(Base):
     __tablename__ = "canadian_provinces"

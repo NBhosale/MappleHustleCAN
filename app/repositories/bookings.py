@@ -1,7 +1,9 @@
-from sqlalchemy.orm import Session
-from app.models.bookings import Booking, Review
-from uuid import UUID
 from typing import List
+from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.models.bookings import Booking
 
 
 def create_booking(db: Session, booking: Booking) -> Booking:
@@ -23,7 +25,10 @@ def get_bookings_for_provider(db: Session, provider_id: UUID) -> List[Booking]:
     return db.query(Booking).filter(Booking.provider_id == provider_id).all()
 
 
-def update_booking_status(db: Session, booking: Booking, status: str) -> Booking:
+def update_booking_status(
+        db: Session,
+        booking: Booking,
+        status: str) -> Booking:
     booking.status = status
     db.commit()
     db.refresh(booking)

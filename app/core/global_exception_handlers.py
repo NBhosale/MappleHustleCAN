@@ -1,29 +1,30 @@
 """
 Global exception handlers for consistent error responses
 """
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from sqlalchemy.exc import SQLAlchemyError
-from jose import JWTError, ExpiredSignatureError
 import logging
 import traceback
 from datetime import datetime
 from typing import Union
 
+from fastapi import HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from jose import ExpiredSignatureError, JWTError
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.schemas.errors import (
     ErrorCode,
+    create_business_error_response,
     create_error_response,
-    create_validation_error_response,
     create_system_error_response,
-    create_business_error_response
+    create_validation_error_response,
 )
-from app.core.structured_logging import get_api_logger
 
 logger = logging.getLogger(__name__)
 
 
-async def jwt_exception_handler(request: Request, exc: Union[JWTError, ExpiredSignatureError]):
+async def jwt_exception_handler(
+        request: Request, exc: Union[JWTError, ExpiredSignatureError]):
     """Handle JWT authentication errors"""
     error_response = create_error_response(
         error_code=ErrorCode.UNAUTHORIZED,
@@ -32,16 +33,18 @@ async def jwt_exception_handler(request: Request, exc: Union[JWTError, ExpiredSi
         path=str(request.url.path),
         method=request.method
     )
-    
+
     logger.warning(f"JWT error: {exc} for {request.method} {request.url.path}")
-    
+
     return JSONResponse(
         status_code=401,
         content=error_response.dict()
     )
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(
+        request: Request,
+        exc: RequestValidationError):
     """Handle Pydantic validation errors"""
     details = []
     for error in exc.errors():
@@ -52,16 +55,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "code": error["type"],
             "value": error.get("input")
         })
-    
+
     error_response = create_validation_error_response(
         details=details,
         request_id=getattr(request.state, 'request_id', None),
         path=str(request.url.path),
         method=request.method
     )
-    
-    logger.warning(f"Validation error: {exc} for {request.method} {request.url.path}")
-    
+
+    logger.warning(
+        f"Validation error: {exc} for {request.method} {request.url.path}")
+
     return JSONResponse(
         status_code=422,
         content=error_response.dict()
@@ -71,7 +75,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Handle HTTP exceptions"""
     error_code = ErrorCode.UNKNOWN_ERROR
-    
+
     # Map HTTP status codes to error codes
     if exc.status_code == 401:
         error_code = ErrorCode.UNAUTHORIZED
@@ -85,7 +89,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         error_code = ErrorCode.VALIDATION_ERROR
     elif exc.status_code == 429:
         error_code = ErrorCode.RATE_LIMIT_EXCEEDED
-    
+
     error_response = create_error_response(
         error_code=error_code,
         message=exc.detail,
@@ -93,9 +97,14 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         path=str(request.url.path),
         method=request.method
     )
-    
-    logger.warning(f"HTTP error {exc.status_code}: {exc.detail} for {request.method} {request.url.path}")
-    
+
+    logger.warning(
+        f"HTTP error {
+            exc.status_code}: {
+            exc.detail} for {
+                request.method} {
+                    request.url.path}")
+
     return JSONResponse(
         status_code=exc.status_code,
         content=error_response.dict()
@@ -111,10 +120,11 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
         path=str(request.url.path),
         method=request.method
     )
-    
-    logger.error(f"Database error: {exc} for {request.method} {request.url.path}")
+
+    logger.error(
+        f"Database error: {exc} for {request.method} {request.url.path}")
     logger.error(f"Traceback: {traceback.format_exc()}")
-    
+
     return JSONResponse(
         status_code=500,
         content=error_response.dict()
@@ -130,9 +140,10 @@ async def business_exception_handler(request: Request, exc: Exception):
         path=str(request.url.path),
         method=request.method
     )
-    
-    logger.warning(f"Business error: {exc} for {request.method} {request.url.path}")
-    
+
+    logger.warning(
+        f"Business error: {exc} for {request.method} {request.url.path}")
+
     return JSONResponse(
         status_code=400,
         content=error_response.dict()
@@ -148,10 +159,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
         path=str(request.url.path),
         method=request.method
     )
-    
-    logger.error(f"Unexpected error: {exc} for {request.method} {request.url.path}")
+
+    logger.error(
+        f"Unexpected error: {exc} for {request.method} {request.url.path}")
     logger.error(f"Traceback: {traceback.format_exc()}")
-    
+
     return JSONResponse(
         status_code=500,
         content=error_response.dict()
@@ -160,7 +172,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 class BusinessError(Exception):
     """Custom business logic error"""
-    def __init__(self, message: str, error_code: ErrorCode = ErrorCode.BUSINESS_RULE_VIOLATION):
+
+    def __init__(
+            self,
+            message: str,
+            error_code: ErrorCode = ErrorCode.BUSINESS_RULE_VIOLATION):
         self.message = message
         self.error_code = error_code
         super().__init__(message)
@@ -168,6 +184,7 @@ class BusinessError(Exception):
 
 class ValidationError(Exception):
     """Custom validation error"""
+
     def __init__(self, message: str, field: str = None):
         self.message = message
         self.field = field
@@ -176,6 +193,7 @@ class ValidationError(Exception):
 
 class ResourceNotFoundError(Exception):
     """Resource not found error"""
+
     def __init__(self, resource_type: str, resource_id: str = None):
         self.resource_type = resource_type
         self.resource_id = resource_id
@@ -187,6 +205,7 @@ class ResourceNotFoundError(Exception):
 
 class InsufficientPermissionsError(Exception):
     """Insufficient permissions error"""
+
     def __init__(self, action: str, resource: str = None):
         self.action = action
         self.resource = resource
@@ -198,6 +217,7 @@ class InsufficientPermissionsError(Exception):
 
 class ResourceConflictError(Exception):
     """Resource conflict error"""
+
     def __init__(self, message: str, conflicting_field: str = None):
         self.message = message
         self.conflicting_field = conflicting_field
@@ -207,7 +227,7 @@ class ResourceConflictError(Exception):
 # Export exception classes for use in services
 __all__ = [
     'BusinessError',
-    'ValidationError', 
+    'ValidationError',
     'ResourceNotFoundError',
     'InsufficientPermissionsError',
     'ResourceConflictError'

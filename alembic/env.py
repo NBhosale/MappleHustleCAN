@@ -20,7 +20,11 @@ target_metadata = Base.metadata
 
 # Get DB URL from env
 def get_url():
-    return os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/maplehustle")
+    url = os.getenv("DATABASE_URL", "postgresql+psycopg2://postgres:postgres@localhost:5432/maplehustle")
+    # Ensure we use the correct dialect
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+psycopg2://")
+    return url
 
 def run_migrations_offline():
     context.configure(

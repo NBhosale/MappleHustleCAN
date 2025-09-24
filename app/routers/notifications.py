@@ -1,13 +1,16 @@
+import uuid
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-import uuid
 
 from app.db import SessionLocal
 from app.schemas.notifications import (
-    NotificationCreate, NotificationResponse,
-    UserNotificationPreferenceUpdate, UserNotificationPreferenceResponse,
+    NotificationCreate,
     NotificationLogResponse,
+    NotificationResponse,
+    UserNotificationPreferenceResponse,
+    UserNotificationPreferenceUpdate,
 )
 from app.services import notifications as notification_service
 from app.utils.deps import get_current_user, require_admin
@@ -52,7 +55,8 @@ def mark_as_read(
     current_user=Depends(get_current_user),
 ):
     try:
-        return notification_service.mark_as_read(db, notification_id, current_user.id)
+        return notification_service.mark_as_read(
+            db, notification_id, current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -64,7 +68,8 @@ def update_preferences(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return notification_service.update_preferences(db, current_user.id, preferences)
+    return notification_service.update_preferences(
+        db, current_user.id, preferences)
 
 
 @router.get("/preferences", response_model=UserNotificationPreferenceResponse)
@@ -76,7 +81,8 @@ def get_preferences(
 
 
 # --- Logs (Admin only) ---
-@router.get("/{notification_id}/logs", response_model=List[NotificationLogResponse])
+@router.get("/{notification_id}/logs",
+            response_model=List[NotificationLogResponse])
 def get_notification_logs(
     notification_id: uuid.UUID,
     db: Session = Depends(get_db),

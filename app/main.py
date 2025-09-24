@@ -1,71 +1,82 @@
-from fastapi import FastAPI, Request, Response
-from fastapi.exceptions import RequestValidationError
-from jose import JWTError, ExpiredSignatureError
-from app.core.logging import setup_logging
-from app.core.lifecycle import lifespan
-from app.core.logging_context import LoggingContext, get_logger
-from app.core.error_tracking import error_tracker, track_errors, track_async_errors
-from app.core.performance_monitoring import performance_monitor, monitor_performance, start_performance_monitoring
-import time
-setup_logging()
-
-from app.core.exceptions import jwt_exception_handler, validation_exception_handler
-from app.core.middleware import AuthLoggingMiddleware
-from app.core.validation_middleware import BusinessRuleValidationMiddleware
-from app.core.security import configure_security, get_security_config
-from app.core.security_monitoring import initialize_security_monitoring, get_security_config
 from app.routers import (
-    users,
-    services,
+    auth,
     bookings,
+    files,
+    health,
     items,
-    orders,
-    payments,
     messages,
     notifications,
+    orders,
+    payments,
+    performance,
     provinces,
-    files,
     search,
     security,
-    health,
-    auth,
+    security_dashboard, # Added security dashboard router
+    services,
+    users,
 )
-
-from app.core.middleware import (
-    limiter, 
-    rate_limit_exceeded_handler, 
-    SecurityHeadersMiddleware,
-    CSRFProtectionMiddleware,
-    RequestSizeLimitMiddleware
-)
+from app.core.validation_middleware import BusinessRuleValidationMiddleware
+from app.core.security_monitoring import initialize_security_monitoring
+from app.core.security import configure_security, get_security_config
 from app.core.responses import (
-    handle_api_exception,
+    handle_generic_exception,
     handle_http_exception,
     handle_validation_exception,
-    handle_generic_exception
 )
+from app.core.middleware import (
+    CSRFProtectionMiddleware,
+    RequestSizeLimitMiddleware,
+    SecurityHeadersMiddleware,
+    limiter,
+    rate_limit_exceeded_handler,
+)
+from app.core.exceptions import jwt_exception_handler
+from app.core.config import settings
 from slowapi.errors import RateLimitExceeded
+import time
 
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from jose import ExpiredSignatureError, JWTError
+
+from app.core.error_tracking import error_tracker
+from app.core.lifecycle import lifespan
+from app.core.logging import setup_logging
+from app.core.logging_context import LoggingContext
+from app.core.performance_monitoring import (
+    performance_monitor,
+    start_performance_monitoring,
+)
+from app.db.base import Base
+# from app.models.tokens import RefreshToken  # Import RefreshToken to ensure it's registered - temporarily disabled due to circular import
+from app.db.session import get_engine
+
+setup_logging()
+
+
+# from app.core.middleware import AuthLoggingMiddleware  # TODO: Implement
+# AuthLoggingMiddleware
 
 # ✅ Initialize FastAPI with branding and lifecycle management
 app = FastAPI(
     title="Maple Hussle API",
     description="""
-Welcome to the **Maple Hussle API** 🌿🚀  
+Welcome to the **Maple Hussle API** 🌿🚀
 
-This backend powers the Maple Hussle platform for:  
-- 🔑 Authentication (register, login, JWT refresh, logout)  
-- 👤 User profiles and dashboards  
-- 🛠️ Admin tools (manage users, revoke tokens)  
-- 🔐 Password management (reset, change, forgot-password)  
-- 🛠️ Services and bookings  
-- 🛍️ Marketplace items and orders  
-- 💳 Payments and refunds  
-- 💬 Messaging and notifications  
+This backend powers the Maple Hussle platform for:
+- 🔑 Authentication (register, login, JWT refresh, logout)
+- 👤 User profiles and dashboards
+- 🛠️ Admin tools (manage users, revoke tokens)
+- 🔐 Password management (reset, change, forgot-password)
+- 🛠️ Services and bookings
+- 🛍️ Marketplace items and orders
+- 💳 Payments and refunds
+- 💬 Messaging and notifications
 - 🏥 Health checks and monitoring
 - 🔒 Security features and monitoring
 
-All endpoints are secured with JWT authentication.  
+All endpoints are secured with JWT authentication.
 Use the `/users/login` endpoint to obtain your tokens.
 """,
     version="1.0.0",
@@ -79,13 +90,16 @@ Use the `/users/login` endpoint to obtain your tokens.
         "url": "https://maplehussle.com/legal",
     },
     openapi_tags=[
-        {"name": "Authentication", "description": "User registration, login, refresh, logout"},
-        {"name": "Password Management", "description": "Change, forgot, and reset passwords"},
+        {"name": "Authentication",
+            "description": "User registration, login, refresh, logout"},
+        {"name": "Password Management",
+            "description": "Change, forgot, and reset passwords"},
         {"name": "Profile", "description": "User dashboards and profile info"},
         {"name": "Admin", "description": "Admin-only tools for user and token management"},
         {"name": "Services", "description": "Providers create and manage services"},
         {"name": "Bookings", "description": "Clients book services"},
-        {"name": "Items", "description": "Marketplace items (handmade, home products, etc.)"},
+        {"name": "Items",
+            "description": "Marketplace items (handmade, home products, etc.)"},
         {"name": "Orders", "description": "Client orders and shipments"},
         {"name": "Payments", "description": "Payment processing and refunds"},
         {"name": "Messages", "description": "Client ↔ Provider messaging"},
@@ -95,6 +109,14 @@ Use the `/users/login` endpoint to obtain your tokens.
     ],
     lifespan=lifespan,  # Add lifecycle management
 )
+
+# ✅ Create database tables
+try:
+    engine = get_engine()
+    Base.metadata.create_all(bind=engine)
+    print("✅ Database tables created successfully")
+except Exception as e:
+    print(f"⚠️ Warning: Could not create database tables: {e}")
 
 # ✅ Configure security
 security_config = get_security_config()
@@ -125,32 +147,37 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 
 # ✅ Register middleware
-app.add_middleware(AuthLoggingMiddleware)
+# app.add_middleware(AuthLoggingMiddleware)  # TODO: Implement
+# AuthLoggingMiddleware
 app.add_middleware(BusinessRuleValidationMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(CSRFProtectionMiddleware, secret_key=settings.JWT_SECRET_KEY)
-app.add_middleware(RequestSizeLimitMiddleware, max_size=settings.MAX_REQUEST_SIZE)
+app.add_middleware(CSRFProtectionMiddleware,
+                   secret_key=settings.JWT_SECRET_KEY)
+app.add_middleware(RequestSizeLimitMiddleware,
+                   max_size=settings.MAX_REQUEST_SIZE)
 
 # ✅ Add request logging and performance monitoring middleware
+
+
 @app.middleware("http")
 async def logging_and_performance_middleware(request: Request, call_next):
     """Middleware for request logging and performance monitoring"""
     start_time = time.time()
-    
+
     # Extract user info from request if available
     user_id = None
     if hasattr(request.state, 'user') and request.state.user:
         user_id = str(request.state.user.id)
-    
+
     # Create logging context
     with LoggingContext(user_id=user_id) as context:
         try:
             # Process request
             response = await call_next(request)
-            
+
             # Calculate duration
             duration = time.time() - start_time
-            
+
             # Record performance metrics
             performance_monitor.record_request(
                 method=request.method,
@@ -158,7 +185,7 @@ async def logging_and_performance_middleware(request: Request, call_next):
                 status_code=response.status_code,
                 duration=duration
             )
-            
+
             # Log API request
             from app.core.logging_context import log_api_request
             log_api_request(
@@ -168,9 +195,9 @@ async def logging_and_performance_middleware(request: Request, call_next):
                 duration=duration,
                 user_id=user_id
             )
-            
+
             return response
-            
+
         except Exception as e:
             # Record error
             duration = time.time() - start_time
@@ -204,9 +231,13 @@ app.include_router(notifications.router)
 app.include_router(files.router)
 app.include_router(search.router)
 app.include_router(security.router)
+app.include_router(security_dashboard.router) # Added security dashboard router
 app.include_router(health.router)
+app.include_router(performance.router)
 
 # ✅ Root endpoint
+
+
 @app.get("/")
 def root():
     return {"message": "Maple Hussle API is running 🚀"}

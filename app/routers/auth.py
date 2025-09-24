@@ -1,21 +1,27 @@
 """
 Authentication endpoints with secure refresh token handling
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from app.db import SessionLocal
-from app.schemas.users import UserCreate, UserResponse, TokenResponse
-from app.schemas.tokens import RefreshTokenResponse
-from app.models.users import User
-from app.core.refresh_token_manager import refresh_token_manager
-from app.utils.hashing import hash_password, verify_password
-from app.utils.auth import create_access_token
-from app.core.structured_logging import get_api_logger, get_business_logger
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
 from app.core.middleware import limiter
+from app.core.refresh_token_manager import refresh_token_manager
+from app.core.structured_logging import get_api_logger, get_business_logger
+from app.db import SessionLocal
+from app.models.users import User
+from app.schemas.tokens import RefreshTokenResponse
+from app.schemas.users import (
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
+from app.utils.auth import create_access_token
+from app.utils.hashing import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
@@ -43,13 +49,14 @@ async def register(
     """
     try:
         # Check if user already exists
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
+        existing_user = db.query(User).filter(
+            User.email == user_data.email).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        
+
         # Create new user
         hashed_password = hash_password(user_data.password)
         user = User(
@@ -60,20 +67,31 @@ async def register(
             is_email_verified=False,
             status="active"
         )
-        
+
         db.add(user)
         db.commit()
         db.refresh(user)
-        
+
         # Log user registration
         business_logger.log_user_action(
             user_id=str(user.id),
             action="user_registered",
             details={"email": user.email, "role": user.role}
         )
-        
-        return user
-        
+
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "id": str(user.id),
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "status": user.status,
+                "is_email_verified": user.is_email_verified,
+                "created_at": user.created_at.isoformat() if user.created_at else None
+            }
+        )
+
     except HTTPException:
         raise
     except Exception as e:
@@ -88,8 +106,7 @@ async def register(
 @limiter.limit("10/minute")  # 10 login attempts per minute per IP
 async def login(
     request: Request,
-    email: str,
-    password: str,
+    credentials: UserLogin,
     db: Session = Depends(get_db)
 ):
     """
@@ -97,8 +114,9 @@ async def login(
     """
     try:
         # Find user
-        user = db.query(User).filter(User.email == email).first()
-        if not user or not verify_password(password, user.hashed_password):
+        user = db.query(User).filter(User.email == credentials.email).first()
+        if not user or not verify_password(
+                credentials.password, user.hashed_password):
             logger.log_authentication_failure(
                 endpoint="/auth/login",
                 reason="invalid_credentials",
@@ -108,7 +126,7 @@ async def login(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials"
             )
-        
+
         # Check if user is active
         if user.status != "active":
             logger.log_authentication_failure(
@@ -120,35 +138,35 @@ async def login(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is not active"
             )
-        
+
         # Create access token
         access_token = create_access_token(
             data={"sub": str(user.id), "email": user.email, "role": user.role}
         )
-        
+
         # Create and store refresh token
-        refresh_token = refresh_token_manager.create_refresh_token(
+        refresh_token, _ = refresh_token_manager.create_refresh_token(
             db=db,
             user_id=str(user.id)
         )
-        
+
         # Update last login
         user.last_login_at = datetime.utcnow()
         db.commit()
-        
+
         # Log successful login
         business_logger.log_user_action(
             user_id=str(user.id),
             action="user_logged_in",
             details={"email": user.email, "role": user.role}
         )
-        
+
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -175,46 +193,45 @@ async def refresh_access_token(
             db=db,
             token=refresh_token
         )
-        
+
         if not token_data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid refresh token"
             )
-        
-        # Get user
-        user = db.query(User).filter(User.id == token_data["user_id"]).first()
+
+        # token_data is already a User object from validate_refresh_token
+        user = token_data
         if not user or user.status != "active":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found or inactive"
             )
-        
+
         # Create new access token
         access_token = create_access_token(
             data={"sub": str(user.id), "email": user.email, "role": user.role}
         )
-        
+
         # Rotate refresh token (optional - for enhanced security)
-        new_refresh_token = refresh_token_manager.rotate_refresh_token(
+        new_refresh_token, _ = refresh_token_manager.rotate_refresh_token(
             db=db,
-            old_token=refresh_token,
-            user_id=str(user.id)
+            old_token=refresh_token
         )
-        
+
         # Log token refresh
         business_logger.log_user_action(
             user_id=str(user.id),
             action="token_refreshed",
             details={"email": user.email}
         )
-        
+
         return TokenResponse(
             access_token=access_token,
             refresh_token=new_refresh_token,
             token_type="bearer"
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -239,22 +256,22 @@ async def logout(
             db=db,
             token=refresh_token
         )
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid refresh token"
             )
-        
+
         # Log logout
         business_logger.log_user_action(
             user_id="unknown",
             action="user_logged_out",
             details={"token_revoked": True}
         )
-        
+
         return {"message": "Successfully logged out"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -279,22 +296,22 @@ async def logout_all_sessions(
             db=db,
             user_id=user_id
         )
-        
+
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User not found"
             )
-        
+
         # Log logout all
         business_logger.log_user_action(
             user_id=user_id,
             action="user_logged_out_all_sessions",
             details={"all_tokens_revoked": True}
         )
-        
+
         return {"message": "Successfully logged out from all sessions"}
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -317,13 +334,13 @@ async def get_current_user_info(
         # Verify access token
         from app.utils.auth import verify_token
         payload = verify_token(credentials.credentials)
-        
+
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid access token"
             )
-        
+
         # Get user
         user = db.query(User).filter(User.id == payload["sub"]).first()
         if not user:
@@ -331,9 +348,9 @@ async def get_current_user_info(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        
+
         return user
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -358,11 +375,12 @@ async def get_user_refresh_tokens(
             db=db,
             user_id=user_id
         )
-        
+
         return tokens
-        
+
     except Exception as e:
-        logger.logger.error(f"Get refresh tokens error: {str(e)}", exc_info=True)
+        logger.logger.error(
+            f"Get refresh tokens error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get refresh tokens"

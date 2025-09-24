@@ -1,6 +1,8 @@
-from sqlalchemy.orm import Session
-from app.models.orders import Order, OrderItem, OrderShipment
 from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.models.orders import Order, OrderItem, OrderShipment
 
 
 def create_order(db: Session, order: Order) -> Order:

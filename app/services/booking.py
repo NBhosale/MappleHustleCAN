@@ -1,10 +1,21 @@
-from sqlalchemy.orm import Session
-from app.models.bookings import Booking
-from app.repositories import bookings as booking_repo
 from datetime import datetime
 
+from sqlalchemy.orm import Session
 
-def create_booking(db: Session, client_id, provider_id, service_id, start_date, end_date, total_amount, platform_fee=0.0, tip=None):
+from app.models.bookings import Booking
+from app.repositories import bookings as booking_repo
+
+
+def create_booking(
+        db: Session,
+        client_id,
+        provider_id,
+        service_id,
+        start_date,
+        end_date,
+        total_amount,
+        platform_fee=0.0,
+        tip=None):
     if start_date >= end_date:
         raise ValueError("Start date must be before end date")
 

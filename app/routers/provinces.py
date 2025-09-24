@@ -1,12 +1,11 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-import uuid
 
 from app.db import SessionLocal
 from app.schemas.provinces import (
-    ProvinceResponse,
-    TaxRuleResponse,
+    CanadianProvinceResponse,
 )
 from app.services import provinces as province_service
 from app.utils.deps import require_admin
@@ -24,12 +23,12 @@ def get_db():
 
 
 # --- Provinces ---
-@router.get("/", response_model=List[ProvinceResponse])
+@router.get("/", response_model=List[CanadianProvinceResponse])
 def list_provinces(db: Session = Depends(get_db)):
     return province_service.list_provinces(db)
 
 
-@router.get("/{province_code}", response_model=ProvinceResponse)
+@router.get("/{province_code}", response_model=CanadianProvinceResponse)
 def get_province(province_code: str, db: Session = Depends(get_db)):
     province = province_service.get_province(db, province_code)
     if not province:
@@ -38,15 +37,15 @@ def get_province(province_code: str, db: Session = Depends(get_db)):
 
 
 # --- Tax Rules ---
-@router.get("/{province_code}/taxes", response_model=List[TaxRuleResponse])
+@router.get("/{province_code}/taxes")
 def list_tax_rules(province_code: str, db: Session = Depends(get_db)):
     return province_service.list_tax_rules(db, province_code)
 
 
-@router.post("/{province_code}/taxes", response_model=TaxRuleResponse)
+@router.post("/{province_code}/taxes")
 def add_tax_rule(
     province_code: str,
-    tax_rule: TaxRuleResponse,  # could also define TaxRuleCreate schema
+    tax_rule: dict,  # TODO: Define TaxRuleCreate schema
     db: Session = Depends(get_db),
     current_admin=Depends(require_admin),
 ):

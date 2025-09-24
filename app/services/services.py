@@ -1,23 +1,31 @@
 from sqlalchemy.orm import Session
-from app.models.services import Service, Availability, Portfolio
+
+from app.models.services import Availability, Portfolio, Service
 from app.repositories import services as service_repo
 
 
-def create_service(db: Session, provider_id, type, title, description, hourly_rate, daily_rate, terms=None, is_featured=False):
+def create_service(db: Session, provider_id, service_data):
+    """Create a new service for a provider"""
     service = Service(
         provider_id=provider_id,
-        type=type,
-        title=title,
-        description=description,
-        hourly_rate=hourly_rate,
-        daily_rate=daily_rate,
-        terms=terms,
-        is_featured=is_featured,
+        type=service_data.type,
+        title=service_data.title,
+        description=service_data.description,
+        hourly_rate=service_data.hourly_rate,
+        daily_rate=service_data.daily_rate,
+        terms=service_data.terms,
+        is_featured=service_data.is_featured,
     )
     return service_repo.create_service(db, service)
 
 
-def create_availability(db: Session, provider_id, date, start_time, end_time, recurrence_rule=None):
+def create_availability(
+        db: Session,
+        provider_id,
+        date,
+        start_time,
+        end_time,
+        recurrence_rule=None):
     availability = Availability(
         provider_id=provider_id,
         date=date,

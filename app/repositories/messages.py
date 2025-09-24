@@ -1,6 +1,8 @@
-from sqlalchemy.orm import Session
-from app.models.messages import Message, MessageAttachment
 from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.models.messages import Message, MessageAttachment
 
 
 def create_message(db: Session, message: Message) -> Message:
@@ -10,7 +12,9 @@ def create_message(db: Session, message: Message) -> Message:
     return message
 
 
-def add_attachment(db: Session, attachment: MessageAttachment) -> MessageAttachment:
+def add_attachment(
+        db: Session,
+        attachment: MessageAttachment) -> MessageAttachment:
     db.add(attachment)
     db.commit()
     db.refresh(attachment)

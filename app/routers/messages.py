@@ -1,12 +1,14 @@
+import uuid
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
-import uuid
 
 from app.db import SessionLocal
 from app.schemas.messages import (
-    MessageCreate, MessageResponse,
     MessageAttachmentResponse,
+    MessageCreate,
+    MessageResponse,
 )
 from app.services import messages as message_service
 from app.utils.deps import get_current_user
@@ -43,7 +45,8 @@ def get_messages_for_booking(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return message_service.get_messages_for_booking(db, booking_id, current_user.id)
+    return message_service.get_messages_for_booking(
+        db, booking_id, current_user.id)
 
 
 # --- Get direct messages between two users ---
@@ -53,7 +56,8 @@ def get_direct_messages(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return message_service.get_direct_messages(db, current_user.id, other_user_id)
+    return message_service.get_direct_messages(
+        db, current_user.id, other_user_id)
 
 
 # --- Mark a message as read ---
@@ -70,6 +74,7 @@ def mark_as_read(
 
 
 # --- List attachments for a message ---
-@router.get("/{message_id}/attachments", response_model=List[MessageAttachmentResponse])
+@router.get("/{message_id}/attachments",
+            response_model=List[MessageAttachmentResponse])
 def list_attachments(message_id: uuid.UUID, db: Session = Depends(get_db)):
     return message_service.list_attachments(db, message_id)

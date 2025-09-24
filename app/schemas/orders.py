@@ -1,9 +1,10 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List
-import uuid
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 # --- Enums ---
@@ -21,7 +22,7 @@ class OrderItemBase(BaseModel):
     item_id: uuid.UUID
     quantity: int = Field(..., gt=0, le=1000)
     price: float = Field(..., gt=0, le=100000)
-    
+
     @validator('quantity')
     def validate_quantity(cls, v):
         if v <= 0:
@@ -29,7 +30,7 @@ class OrderItemBase(BaseModel):
         if v > 1000:
             raise ValueError('Quantity cannot exceed 1000')
         return v
-    
+
     @validator('price')
     def validate_price(cls, v):
         if v <= 0:
@@ -79,7 +80,7 @@ class OrderBase(BaseModel):
     status: OrderStatus = OrderStatus.pending
     tracking_number: Optional[str] = Field(None, max_length=100)
     shipped_at: Optional[datetime]
-    
+
     @validator('total_amount')
     def validate_total_amount(cls, v):
         if v <= 0:
@@ -87,7 +88,7 @@ class OrderBase(BaseModel):
         if v > 1000000:
             raise ValueError('Total amount cannot exceed $1,000,000')
         return v
-    
+
     @validator('tax_amount')
     def validate_tax_amount(cls, v):
         if v < 0:
@@ -95,7 +96,7 @@ class OrderBase(BaseModel):
         if v > 100000:
             raise ValueError('Tax amount cannot exceed $100,000')
         return v
-    
+
     @validator('platform_fee')
     def validate_platform_fee(cls, v):
         if v is not None and v < 0:

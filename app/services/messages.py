@@ -1,10 +1,18 @@
-from sqlalchemy.orm import Session
-from app.models.messages import Message, MessageAttachment
-from app.repositories import messages as message_repo
 from datetime import datetime
 
+from sqlalchemy.orm import Session
 
-def send_message(db: Session, booking_id, sender_id, receiver_id, content, attachments=None):
+from app.models.messages import Message, MessageAttachment
+from app.repositories import messages as message_repo
+
+
+def send_message(
+        db: Session,
+        booking_id,
+        sender_id,
+        receiver_id,
+        content,
+        attachments=None):
     msg = Message(
         booking_id=booking_id,
         sender_id=sender_id,

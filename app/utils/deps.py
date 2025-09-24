@@ -1,14 +1,17 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+
 from app.db import SessionLocal
-from app.utils.auth import verify_token
 from app.models.users import User
+from app.utils.auth import verify_token
 
 # OAuth2 scheme - expects "Authorization: Bearer <token>"
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 # DB session dependency
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -17,7 +20,11 @@ def get_db():
         db.close()
 
 # Get current authenticated user
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+
+
+def get_current_user(
+        token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)) -> User:
     payload = verify_token(token)
     if not payload:
         raise HTTPException(
@@ -37,15 +44,19 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 # Role-based access control
+
+
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
 
+
 def require_provider(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "provider":
         raise HTTPException(status_code=403, detail="Provider access required")
     return current_user
+
 
 def require_client(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != "client":

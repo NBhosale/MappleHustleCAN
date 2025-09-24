@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+
 from app.models.items import Item, ItemCategory, ItemTag
 from app.repositories import items as item_repo
 
@@ -8,7 +9,17 @@ def create_category(db: Session, name, description):
     return item_repo.create_category(db, category)
 
 
-def create_item(db: Session, provider_id, category_id, name, description, price, inventory_quantity, images, shipping_options, is_featured=False):
+def create_item(
+        db: Session,
+        provider_id,
+        category_id,
+        name,
+        description,
+        price,
+        inventory_quantity,
+        images,
+        shipping_options,
+        is_featured=False):
     item = Item(
         provider_id=provider_id,
         category_id=category_id,

@@ -1,10 +1,18 @@
-from sqlalchemy.orm import Session
-from app.models.orders import Order, OrderItem, OrderShipment
-from app.repositories import orders as order_repo
 from datetime import datetime
 
+from sqlalchemy.orm import Session
 
-def create_order(db: Session, client_id, total_amount, tax_amount, platform_fee=None, items=None):
+from app.models.orders import Order, OrderItem, OrderShipment
+from app.repositories import orders as order_repo
+
+
+def create_order(
+        db: Session,
+        client_id,
+        total_amount,
+        tax_amount,
+        platform_fee=None,
+        items=None):
     order = Order(
         client_id=client_id,
         total_amount=total_amount,

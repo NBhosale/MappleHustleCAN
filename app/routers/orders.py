@@ -1,19 +1,20 @@
+import uuid
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-import uuid
 
 from app.db import SessionLocal
 from app.schemas.orders import (
-    OrderCreate, OrderResponse,
-    OrderItemResponse, OrderShipmentCreate, OrderShipmentResponse,
+    OrderCreate,
+    OrderItemResponse,
+    OrderResponse,
+    OrderShipmentCreate,
+    OrderShipmentResponse,
 )
 from app.services import orders as order_service
 from app.utils.deps import require_client, require_provider
-from app.utils.validation import (
-    validate_order_request,
-    ValidationError
-)
+from app.utils.validation import ValidationError, validate_order_request
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -37,7 +38,7 @@ def create_order(
     try:
         # Validate order request (inventory, user status, etc.)
         validate_order_request(db, str(current_user.id), order.items)
-        
+
         return order_service.create_order(db, order, current_user.id)
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=str(e.detail))
@@ -81,6 +82,7 @@ def create_shipment(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/{order_id}/shipments", response_model=List[OrderShipmentResponse])
+@router.get("/{order_id}/shipments",
+            response_model=List[OrderShipmentResponse])
 def list_shipments(order_id: uuid.UUID, db: Session = Depends(get_db)):
     return order_service.list_shipments(db, order_id)

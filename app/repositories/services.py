@@ -1,6 +1,9 @@
-from sqlalchemy.orm import Session
-from app.models.services import Provider, Service, Availability, Portfolio
 from uuid import UUID
+
+from sqlalchemy.orm import Session
+
+from app.models.providers import Provider
+from app.models.services import Availability, Portfolio, Service
 
 
 def get_provider(db: Session, user_id: UUID) -> Provider | None:
@@ -22,7 +25,9 @@ def list_services_by_provider(db: Session, provider_id: UUID):
     return db.query(Service).filter(Service.provider_id == provider_id).all()
 
 
-def create_availability(db: Session, availability: Availability) -> Availability:
+def create_availability(
+        db: Session,
+        availability: Availability) -> Availability:
     db.add(availability)
     db.commit()
     db.refresh(availability)

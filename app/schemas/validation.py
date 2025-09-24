@@ -1,10 +1,11 @@
 """
 Pydantic validation schemas for business rules
 """
-from pydantic import BaseModel, validator, Field
-from typing import Optional
-from datetime import date, time
 import re
+from datetime import date, time
+from typing import Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 class AvailabilityValidation(BaseModel):
@@ -45,13 +46,15 @@ class BookingValidation(BaseModel):
         from datetime import datetime, timedelta
         booking_datetime = datetime.combine(v, time.min)
         now = datetime.now()
-        
+
         if booking_datetime - now < timedelta(hours=2):
-            raise ValueError('Bookings must be made at least 2 hours in advance')
-        
+            raise ValueError(
+                'Bookings must be made at least 2 hours in advance')
+
         if booking_datetime - now > timedelta(days=180):
-            raise ValueError('Bookings cannot be made more than 6 months in advance')
-        
+            raise ValueError(
+                'Bookings cannot be made more than 6 months in advance')
+
         return v
 
 
@@ -66,7 +69,7 @@ class UserLocationValidation(BaseModel):
         if v:
             v = v.upper()
             valid_provinces = {
-                'AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 
+                'AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU',
                 'ON', 'PE', 'QC', 'SK', 'YT'
             }
             if v not in valid_provinces:
@@ -81,7 +84,8 @@ class UserLocationValidation(BaseModel):
             # Canadian postal code pattern: A1A 1A1
             pattern = r"^[A-Z]\d[A-Z]\d[A-Z]\d$"
             if not re.match(pattern, v):
-                raise ValueError('Invalid Canadian postal code format. Expected: A1A 1A1')
+                raise ValueError(
+                    'Invalid Canadian postal code format. Expected: A1A 1A1')
         return v
 
 
@@ -128,9 +132,11 @@ class ServiceRateValidation(BaseModel):
             hourly = values['hourly_rate']
             # Daily rate should be reasonable compared to hourly (4-12 hours)
             if v < hourly * 4:
-                raise ValueError('Daily rate seems too low compared to hourly rate')
+                raise ValueError(
+                    'Daily rate seems too low compared to hourly rate')
             if v > hourly * 12:
-                raise ValueError('Daily rate seems too high compared to hourly rate')
+                raise ValueError(
+                    'Daily rate seems too high compared to hourly rate')
         return v
 
 
@@ -149,25 +155,28 @@ class PaymentAmountValidation(BaseModel):
 
 class MessageContentValidation(BaseModel):
     """Validation schema for message content"""
-    content: str = Field(min_length=1, max_length=5000, description="Message content length")
+    content: str = Field(min_length=1, max_length=5000,
+                         description="Message content length")
 
     @validator('content')
     def validate_content(cls, v):
         if not v.strip():
             raise ValueError('Message content cannot be empty')
-        
+
         # Check for spam-like content (basic check)
         spam_indicators = ['spam', 'scam', 'free money', 'click here']
         if any(indicator in v.lower() for indicator in spam_indicators):
             raise ValueError('Message content appears to be spam')
-        
+
         return v.strip()
 
 
 class ReviewValidation(BaseModel):
     """Validation schema for review submission"""
-    rating: int = Field(ge=1, le=5, description="Rating must be between 1 and 5")
-    comment: Optional[str] = Field(None, max_length=1000, description="Review comment")
+    rating: int = Field(
+        ge=1, le=5, description="Rating must be between 1 and 5")
+    comment: Optional[str] = Field(
+        None, max_length=1000, description="Review comment")
 
     @validator('comment')
     def validate_comment(cls, v):

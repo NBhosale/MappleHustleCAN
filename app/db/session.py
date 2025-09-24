@@ -2,13 +2,14 @@
 Database session management with connection pooling for MapleHustleCAN
 """
 import logging
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool, NullPool
-from sqlalchemy.engine import Engine
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Generator
-import time
+
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool, QueuePool
 
 from app.core.config import settings
 
@@ -21,7 +22,7 @@ _SessionLocal: sessionmaker = None
 
 def create_database_engine() -> Engine:
     """Create database engine with optimized connection pooling"""
-    
+
     # Connection pool configuration
     pool_config = {
         "poolclass": QueuePool,
@@ -32,20 +33,24 @@ def create_database_engine() -> Engine:
         "pool_timeout": 30,  # Timeout for getting connection from pool
         "echo": settings.DEBUG,  # Log SQL queries in debug mode
     }
-    
+
     # For SQLite, use NullPool to avoid connection issues
     if settings.DATABASE_URL.startswith("sqlite"):
         pool_config["poolclass"] = NullPool
-    
-    # Create engine
+
+    # Create engine with database-specific configuration
+    if settings.DATABASE_URL.startswith("sqlite"):
+        connect_args = {"check_same_thread": False}
+    else:
+        # PostgreSQL doesn't need check_same_thread
+        connect_args = {}
+
     engine = create_engine(
         settings.DATABASE_URL,
         **pool_config,
-        connect_args={
-            "check_same_thread": False if settings.DATABASE_URL.startswith("sqlite") else True
-        }
+        connect_args=connect_args
     )
-    
+
     # Add connection event listeners
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
@@ -58,35 +63,38 @@ def create_database_engine() -> Engine:
             cursor.execute("PRAGMA cache_size=10000")
             cursor.execute("PRAGMA temp_store=MEMORY")
             cursor.close()
-    
+
     @event.listens_for(engine, "checkout")
-    def receive_checkout(dbapi_connection, connection_record, connection_proxy):
+    def receive_checkout(
+            dbapi_connection,
+            connection_record,
+            connection_proxy):
         """Log connection checkout"""
         logger.debug("Connection checked out from pool")
-    
+
     @event.listens_for(engine, "checkin")
     def receive_checkin(dbapi_connection, connection_record):
         """Log connection checkin"""
         logger.debug("Connection checked in to pool")
-    
+
     return engine
 
 
 def get_engine() -> Engine:
     """Get database engine (singleton)"""
     global _engine
-    
+
     if _engine is None:
         _engine = create_database_engine()
         logger.info("Database engine created with connection pooling")
-    
+
     return _engine
 
 
 def get_session_factory() -> sessionmaker:
     """Get session factory (singleton)"""
     global _SessionLocal
-    
+
     if _SessionLocal is None:
         engine = get_engine()
         _SessionLocal = sessionmaker(
@@ -96,7 +104,7 @@ def get_session_factory() -> sessionmaker:
             expire_on_commit=False  # Prevent lazy loading issues
         )
         logger.info("Database session factory created")
-    
+
     return _SessionLocal
 
 
@@ -106,7 +114,7 @@ def get_db() -> Generator[Session, None, None]:
     """
     session_factory = get_session_factory()
     session = session_factory()
-    
+
     try:
         yield session
     except Exception as e:
@@ -124,7 +132,7 @@ async def get_async_db() -> AsyncGenerator[Session, None]:
     """
     session_factory = get_session_factory()
     session = session_factory()
-    
+
     try:
         yield session
     except Exception as e:
@@ -137,17 +145,17 @@ async def get_async_db() -> AsyncGenerator[Session, None]:
 
 class DatabaseManager:
     """Database connection and session management"""
-    
+
     def __init__(self):
         self.engine = get_engine()
         self.session_factory = get_session_factory()
         self._connection_count = 0
         self._max_connections = 0
-    
+
     def get_connection_stats(self) -> dict:
         """Get connection pool statistics"""
         pool = self.engine.pool
-        
+
         return {
             "pool_size": pool.size(),
             "checked_in": pool.checkedin(),
@@ -158,17 +166,17 @@ class DatabaseManager:
             "available_connections": pool.checkedin(),
             "active_connections": pool.checkedout()
         }
-    
+
     def health_check(self) -> dict:
         """Perform database health check"""
         start_time = time.time()
-        
+
         try:
             with self.session_factory() as session:
                 # Simple query to test connection
-                result = session.execute("SELECT 1").scalar()
+                session.execute("SELECT 1").scalar()
                 response_time = time.time() - start_time
-                
+
                 return {
                     "status": "healthy",
                     "response_time_ms": round(response_time * 1000, 2),
@@ -180,7 +188,7 @@ class DatabaseManager:
                 "error": str(e),
                 "response_time_ms": None
             }
-    
+
     def close_all_connections(self):
         """Close all database connections"""
         try:
@@ -197,38 +205,38 @@ _db_manager: DatabaseManager = None
 def get_database_manager() -> DatabaseManager:
     """Get database manager instance"""
     global _db_manager
-    
+
     if _db_manager is None:
         _db_manager = DatabaseManager()
-    
+
     return _db_manager
 
 
 # Connection monitoring and optimization
 class ConnectionMonitor:
     """Monitor database connections and optimize performance"""
-    
+
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager
         self.query_times = []
         self.slow_query_threshold = 1.0  # 1 second
-    
+
     def log_query_time(self, query_time: float, query: str = None):
         """Log query execution time"""
         self.query_times.append(query_time)
-        
+
         if query_time > self.slow_query_threshold:
             logger.warning(f"Slow query detected: {query_time:.2f}s - {query}")
-        
+
         # Keep only last 1000 query times
         if len(self.query_times) > 1000:
             self.query_times = self.query_times[-1000:]
-    
+
     def get_performance_stats(self) -> dict:
         """Get query performance statistics"""
         if not self.query_times:
             return {"total_queries": 0}
-        
+
         return {
             "total_queries": len(self.query_times),
             "average_time": sum(self.query_times) / len(self.query_times),
@@ -263,34 +271,34 @@ def explain_query(session: Session, query) -> str:
 # Database transaction utilities
 class TransactionManager:
     """Manage database transactions"""
-    
+
     def __init__(self, session: Session):
         self.session = session
         self._transaction_depth = 0
-    
+
     def begin_transaction(self):
         """Begin a new transaction"""
         if self._transaction_depth == 0:
             # Start new transaction
             pass
         self._transaction_depth += 1
-    
+
     def commit_transaction(self):
         """Commit the current transaction"""
         if self._transaction_depth == 1:
             self.session.commit()
         self._transaction_depth = max(0, self._transaction_depth - 1)
-    
+
     def rollback_transaction(self):
         """Rollback the current transaction"""
         if self._transaction_depth == 1:
             self.session.rollback()
         self._transaction_depth = max(0, self._transaction_depth - 1)
-    
+
     def __enter__(self):
         self.begin_transaction()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
             self.rollback_transaction()
@@ -301,3 +309,10 @@ class TransactionManager:
 def get_transaction_manager(session: Session) -> TransactionManager:
     """Get transaction manager for session"""
     return TransactionManager(session)
+
+
+# Alias for backward compatibility
+def SessionLocal():
+    """Get a new database session"""
+    session_factory = get_session_factory()
+    return session_factory()

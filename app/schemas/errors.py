@@ -1,10 +1,11 @@
 """
 Global error response schemas for consistent API error handling
 """
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
 
 
 class ErrorCode(str, Enum):
@@ -15,45 +16,45 @@ class ErrorCode(str, Enum):
     TOKEN_EXPIRED = "TOKEN_EXPIRED"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     ACCOUNT_LOCKED = "ACCOUNT_LOCKED"
-    
+
     # Validation Errors
     VALIDATION_ERROR = "VALIDATION_ERROR"
     INVALID_INPUT = "INVALID_INPUT"
     MISSING_REQUIRED_FIELD = "MISSING_REQUIRED_FIELD"
     INVALID_FORMAT = "INVALID_FORMAT"
-    
+
     # Business Logic Errors
     RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
     RESOURCE_ALREADY_EXISTS = "RESOURCE_ALREADY_EXISTS"
     BUSINESS_RULE_VIOLATION = "BUSINESS_RULE_VIOLATION"
     INSUFFICIENT_PERMISSIONS = "INSUFFICIENT_PERMISSIONS"
     OPERATION_NOT_ALLOWED = "OPERATION_NOT_ALLOWED"
-    
+
     # System Errors
     INTERNAL_ERROR = "INTERNAL_ERROR"
     SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
     DATABASE_ERROR = "DATABASE_ERROR"
     EXTERNAL_SERVICE_ERROR = "EXTERNAL_SERVICE_ERROR"
-    
+
     # Rate Limiting
     RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
     TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS"
-    
+
     # File Upload Errors
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
     INVALID_FILE_TYPE = "INVALID_FILE_TYPE"
     UPLOAD_FAILED = "UPLOAD_FAILED"
-    
+
     # Payment Errors
     PAYMENT_FAILED = "PAYMENT_FAILED"
     INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"
     PAYMENT_METHOD_INVALID = "PAYMENT_METHOD_INVALID"
-    
+
     # Booking Errors
     BOOKING_CONFLICT = "BOOKING_CONFLICT"
     BOOKING_NOT_AVAILABLE = "BOOKING_NOT_AVAILABLE"
     BOOKING_EXPIRED = "BOOKING_EXPIRED"
-    
+
     # Generic
     UNKNOWN_ERROR = "UNKNOWN_ERROR"
 
@@ -76,7 +77,7 @@ class ErrorResponse(BaseModel):
     request_id: Optional[str] = None
     path: Optional[str] = None
     method: Optional[str] = None
-    
+
     class Config:
         use_enum_values = True
 
@@ -91,7 +92,7 @@ class ValidationErrorResponse(BaseModel):
     request_id: Optional[str] = None
     path: Optional[str] = None
     method: Optional[str] = None
-    
+
     class Config:
         use_enum_values = True
 
@@ -107,7 +108,7 @@ class BusinessErrorResponse(BaseModel):
     request_id: Optional[str] = None
     path: Optional[str] = None
     method: Optional[str] = None
-    
+
     class Config:
         use_enum_values = True
 
@@ -122,7 +123,7 @@ class SystemErrorResponse(BaseModel):
     request_id: Optional[str] = None
     path: Optional[str] = None
     method: Optional[str] = None
-    
+
     class Config:
         use_enum_values = True
 
@@ -140,7 +141,7 @@ class RateLimitErrorResponse(BaseModel):
     request_id: Optional[str] = None
     path: Optional[str] = None
     method: Optional[str] = None
-    
+
     class Config:
         use_enum_values = True
 

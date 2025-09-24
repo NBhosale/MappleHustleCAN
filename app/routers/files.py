@@ -1,24 +1,22 @@
 """
 File upload endpoints for attachments, images, and documents
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from typing import List, Optional
 import uuid
-import os
 from pathlib import Path
+from typing import List
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.db import SessionLocal
 from app.utils.deps import get_current_user
 from app.utils.storage import save_file
-from app.utils.validation import ValidationError
 
 router = APIRouter(prefix="/files", tags=["Files"])
 
 # Allowed file types and their max sizes
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
-ALLOWED_DOCUMENT_TYPES = ["application/pdf", "text/plain", "application/msword"]
+ALLOWED_DOCUMENT_TYPES = ["application/pdf",
+                          "text/plain", "application/msword"]
 ALLOWED_ATTACHMENT_TYPES = ALLOWED_IMAGE_TYPES + ALLOWED_DOCUMENT_TYPES
 
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
@@ -38,9 +36,9 @@ def validate_file_type(file: UploadFile, allowed_types: List[str]) -> None:
     """Validate file type"""
     if file.content_type not in allowed_types:
         raise HTTPException(
-            status_code=400,
-            detail=f"File type {file.content_type} not allowed. Allowed types: {', '.join(allowed_types)}"
-        )
+            status_code=400, detail=f"File type {
+                file.content_type} not allowed. Allowed types: {
+                ', '.join(allowed_types)}")
 
 
 def validate_file_size(file: UploadFile, max_size: int) -> None:
@@ -48,11 +46,11 @@ def validate_file_size(file: UploadFile, max_size: int) -> None:
     # Read file content to check size
     content = file.file.read()
     file.file.seek(0)  # Reset file pointer
-    
+
     if len(content) > max_size:
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size: {max_size // (1024*1024)}MB"
+            detail=f"File too large. Maximum size: {max_size // (1024 * 1024)}MB"
         )
 
 
@@ -72,24 +70,34 @@ async def upload_profile_image(
         # Validate file type and size
         validate_file_type(file, ALLOWED_IMAGE_TYPES)
         validate_file_size(file, MAX_IMAGE_SIZE)
-        
+
+        # Get file size before saving
+        file_size = len(await file.read())
+        file.file.seek(0)  # Reset file pointer
+
         # Generate unique filename
-        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-        unique_filename = f"profile_{current_user.id}_{uuid.uuid4().hex}.{file_extension}"
-        
+        file_extension = file.filename.split(
+            '.')[-1] if '.' in file.filename else 'jpg'
+        unique_filename = f"profile_{
+            current_user.id}_{
+            uuid.uuid4().hex}.{file_extension}"
+
         # Save file
         file_path = await save_file(file, f"profiles/{unique_filename}")
-        
+
         # Update user profile (this would be done in a service layer)
         # For now, just return the file path
-        
+
         return {
             "message": "Profile image uploaded successfully",
             "file_path": file_path,
-            "file_size": len(await file.read()),
+            "file_size": file_size,
             "content_type": file.content_type
         }
-        
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (validation errors) as-is
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
@@ -109,22 +117,25 @@ async def upload_item_images(
     """
     try:
         if len(files) > 10:
-            raise HTTPException(status_code=400, detail="Maximum 10 images allowed per item")
-        
+            raise HTTPException(
+                status_code=400, detail="Maximum 10 images allowed per item")
+
         uploaded_files = []
-        
+
         for i, file in enumerate(files):
             # Validate file type and size
             validate_file_type(file, ALLOWED_IMAGE_TYPES)
             validate_file_size(file, MAX_IMAGE_SIZE)
-            
+
             # Generate unique filename
-            file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-            unique_filename = f"item_{item_id}_{i}_{uuid.uuid4().hex}.{file_extension}"
-            
+            file_extension = file.filename.split(
+                '.')[-1] if '.' in file.filename else 'jpg'
+            unique_filename = f"item_{item_id}_{i}_{
+                uuid.uuid4().hex}.{file_extension}"
+
             # Save file
             file_path = await save_file(file, f"items/{unique_filename}")
-            
+
             uploaded_files.append({
                 "filename": file.filename,
                 "file_path": file_path,
@@ -132,13 +143,13 @@ async def upload_item_images(
                 "content_type": file.content_type,
                 "order": i
             })
-        
+
         return {
             "message": f"Successfully uploaded {len(files)} images",
             "item_id": item_id,
             "files": uploaded_files
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
@@ -158,35 +169,39 @@ async def upload_message_attachments(
     """
     try:
         if len(files) > 5:
-            raise HTTPException(status_code=400, detail="Maximum 5 attachments allowed per message")
-        
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 5 attachments allowed per message")
+
         uploaded_files = []
-        
+
         for file in files:
             # Validate file type and size
             validate_file_type(file, ALLOWED_ATTACHMENT_TYPES)
             validate_file_size(file, MAX_ATTACHMENT_SIZE)
-            
+
             # Generate unique filename
-            file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'bin'
-            unique_filename = f"msg_{message_id}_{uuid.uuid4().hex}.{file_extension}"
-            
+            file_extension = file.filename.split(
+                '.')[-1] if '.' in file.filename else 'bin'
+            unique_filename = f"msg_{message_id}_{
+                uuid.uuid4().hex}.{file_extension}"
+
             # Save file
             file_path = await save_file(file, f"attachments/{unique_filename}")
-            
+
             uploaded_files.append({
                 "filename": file.filename,
                 "file_path": file_path,
                 "file_size": len(await file.read()),
                 "content_type": file.content_type
             })
-        
+
         return {
             "message": f"Successfully uploaded {len(files)} attachments",
             "message_id": message_id,
             "files": uploaded_files
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
@@ -208,14 +223,17 @@ async def upload_document(
         # Validate file type and size
         validate_file_type(file, ALLOWED_DOCUMENT_TYPES)
         validate_file_size(file, MAX_DOCUMENT_SIZE)
-        
+
         # Generate unique filename
-        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'pdf'
-        unique_filename = f"{document_type}_{current_user.id}_{uuid.uuid4().hex}.{file_extension}"
-        
+        file_extension = file.filename.split(
+            '.')[-1] if '.' in file.filename else 'pdf'
+        unique_filename = f"{document_type}_{
+            current_user.id}_{
+            uuid.uuid4().hex}.{file_extension}"
+
         # Save file
         file_path = await save_file(file, f"documents/{document_type}/{unique_filename}")
-        
+
         return {
             "message": "Document uploaded successfully",
             "file_path": file_path,
@@ -223,7 +241,7 @@ async def upload_document(
             "file_size": len(await file.read()),
             "content_type": file.content_type
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
@@ -242,45 +260,52 @@ async def bulk_upload_item_images(
     """
     try:
         if len(files) > 50:
-            raise HTTPException(status_code=400, detail="Maximum 50 files allowed in bulk upload")
-        
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 50 files allowed in bulk upload")
+
         uploaded_files = []
         failed_uploads = []
-        
+
         for i, file in enumerate(files):
             try:
                 # Validate file type and size
                 validate_file_type(file, ALLOWED_IMAGE_TYPES)
                 validate_file_size(file, MAX_IMAGE_SIZE)
-                
+
                 # Generate unique filename
-                file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
-                unique_filename = f"bulk_{current_user.id}_{i}_{uuid.uuid4().hex}.{file_extension}"
-                
+                file_extension = file.filename.split(
+                    '.')[-1] if '.' in file.filename else 'jpg'
+                unique_filename = f"bulk_{
+                    current_user.id}_{i}_{
+                    uuid.uuid4().hex}.{file_extension}"
+
                 # Save file
                 file_path = await save_file(file, f"bulk/items/{unique_filename}")
-                
+
                 uploaded_files.append({
                     "original_filename": file.filename,
                     "file_path": file_path,
                     "file_size": len(await file.read()),
                     "content_type": file.content_type
                 })
-                
+
             except Exception as e:
                 failed_uploads.append({
                     "filename": file.filename,
                     "error": str(e)
                 })
-        
+
         return {
-            "message": f"Bulk upload completed. {len(uploaded_files)} successful, {len(failed_uploads)} failed",
+            "message": f"Bulk upload completed. {
+                len(uploaded_files)} successful, {
+                len(failed_uploads)} failed",
             "uploaded_files": uploaded_files,
-            "failed_uploads": failed_uploads
-        }
-        
+            "failed_uploads": failed_uploads}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Bulk upload failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Bulk upload failed: {str(e)}")
 
 
 # ============================================================================
@@ -301,8 +326,9 @@ async def delete_file(
            not file_path.startswith(f"items/") and \
            not file_path.startswith(f"attachments/") and \
            not file_path.startswith(f"documents/"):
-            raise HTTPException(status_code=403, detail="Not authorized to delete this file")
-        
+            raise HTTPException(
+                status_code=403, detail="Not authorized to delete this file")
+
         # Delete file from storage
         full_path = Path(file_path)
         if full_path.exists():
@@ -310,7 +336,7 @@ async def delete_file(
             return {"message": "File deleted successfully"}
         else:
             raise HTTPException(status_code=404, detail="File not found")
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
@@ -327,7 +353,7 @@ async def get_file_info(
         full_path = Path(file_path)
         if not full_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
-        
+
         stat = full_path.stat()
         return {
             "file_path": file_path,
@@ -335,6 +361,7 @@ async def get_file_info(
             "created_at": stat.st_ctime,
             "modified_at": stat.st_mtime
         }
-        
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get file info: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get file info: {str(e)}")

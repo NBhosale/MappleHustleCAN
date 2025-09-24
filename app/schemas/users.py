@@ -1,9 +1,10 @@
-from pydantic import BaseModel, EmailStr, validator, Field
-from typing import Optional
-import uuid
-from enum import Enum
-from datetime import datetime
 import re
+import uuid
+from datetime import datetime
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, EmailStr, Field, validator
 
 
 # --- Enums ---
@@ -35,13 +36,16 @@ class UserBase(BaseModel):
 # --- Create User ---
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=128)
-    
+
     @validator('password')
     def validate_password(cls, v):
-        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', v):
-            raise ValueError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
+        if not re.match(
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]',
+                v):
+            raise ValueError(
+                'Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
         return v
-    
+
     @validator('name')
     def validate_name(cls, v):
         if len(v.strip()) < 2:
@@ -57,11 +61,14 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str = Field(..., min_length=32)
     new_password: str = Field(..., min_length=8, max_length=128)
-    
+
     @validator('new_password')
     def validate_password(cls, v):
-        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', v):
-            raise ValueError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
+        if not re.match(
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]',
+                v):
+            raise ValueError(
+                'Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
         return v
 
 
@@ -69,11 +76,14 @@ class ResetPasswordRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str = Field(..., min_length=1)
     new_password: str = Field(..., min_length=8, max_length=128)
-    
+
     @validator('new_password')
     def validate_password(cls, v):
-        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', v):
-            raise ValueError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
+        if not re.match(
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]',
+                v):
+            raise ValueError(
+                'Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
         return v
 
 
@@ -94,12 +104,13 @@ class UserResponse(UserBase):
     preferred_contact_method: Optional[ContactMethod]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # --- Admin-only Response (extended) ---
 # SECURITY NOTE: This schema is intentionally minimal to prevent sensitive data exposure
-# Even admin users should not have access to sensitive fields like tokens or password hashes
+# Even admin users should not have access to sensitive fields like tokens
+# or password hashes
 class UserAdminResponse(UserResponse):
     phone_number: Optional[str]
     is_phone_verified: Optional[bool]
@@ -110,11 +121,11 @@ class UserAdminResponse(UserResponse):
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     deleted_at: Optional[datetime]
-    # SECURITY: Sensitive fields (verification_token, password_reset_token, hashed_password) 
+    # SECURITY: Sensitive fields (verification_token, password_reset_token, hashed_password)
     # are intentionally excluded even from admin responses for security reasons
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # --- Admin Detail Response (for internal admin operations only) ---
@@ -124,7 +135,6 @@ class UserAdminDetailResponse(UserAdminResponse):
     """Extended admin response with additional fields for internal admin operations"""
     # Additional admin fields can be added here if needed
     # But NEVER include sensitive fields like tokens or password hashes
-    pass
 
 
 # --- Token responses ---

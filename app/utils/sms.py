@@ -1,5 +1,6 @@
-from twilio.rest import Client
 import os
+
+from twilio.rest import Client
 
 TWILIO_SID = os.getenv("TWILIO_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")

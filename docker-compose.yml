@@ -39,7 +39,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/maplehustle
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/maplehustle
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: supersecretjwt
     volumes:
@@ -49,13 +49,7 @@ services:
     command: |
       sh -c "
         echo 'Waiting for database to be ready...' &&
-        python -c 'import time; import psycopg2; 
-        while True:
-          try:
-            psycopg2.connect(\"postgres://postgres:postgres@db:5432/maplehustle\")
-            break
-          except:
-            time.sleep(1)' &&
+        python -c 'import time; import psycopg2; exec(\"while True:\\n    try:\\n        psycopg2.connect(\\\"postgresql://postgres:postgres@db:5432/maplehustle\\\")\\n        break\\n    except:\\n        time.sleep(1)\")' &&
         echo 'Running database migrations...' &&
         alembic upgrade head &&
         echo 'Starting application...' &&

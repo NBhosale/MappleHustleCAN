@@ -2,9 +2,10 @@
 Standardized API response format for consistent error handling and success responses.
 """
 
+from typing import Any, Dict, Optional
+
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
-from typing import Any, Optional, Dict
 from pydantic import BaseModel
 
 
@@ -82,7 +83,7 @@ def not_found_response(
     """Create a standardized not found response."""
     if not message:
         message = f"{resource} not found"
-    
+
     return error_response(
         message=message,
         status_code=404,
@@ -150,7 +151,7 @@ def rate_limit_response(
 # Custom HTTPException for consistent error handling
 class APIException(HTTPException):
     """Custom HTTPException with standardized error format."""
-    
+
     def __init__(
         self,
         status_code: int,
@@ -164,7 +165,7 @@ class APIException(HTTPException):
 
 
 # Global exception handlers
-def handle_api_exception(exc: APIException) -> JSONResponse:
+def handle_api_exception(request, exc: APIException) -> JSONResponse:
     """Handle custom API exceptions."""
     return error_response(
         message=str(exc.detail),
@@ -174,7 +175,7 @@ def handle_api_exception(exc: APIException) -> JSONResponse:
     )
 
 
-def handle_http_exception(exc: HTTPException) -> JSONResponse:
+def handle_http_exception(request, exc: HTTPException) -> JSONResponse:
     """Handle standard HTTP exceptions."""
     return error_response(
         message=str(exc.detail),
@@ -182,17 +183,17 @@ def handle_http_exception(exc: HTTPException) -> JSONResponse:
     )
 
 
-def handle_validation_exception(exc) -> JSONResponse:
+def handle_validation_exception(request, exc) -> JSONResponse:
     """Handle Pydantic validation exceptions."""
     errors = {}
     for error in exc.errors():
         field = ".".join(str(loc) for loc in error["loc"])
         errors[field] = error["msg"]
-    
+
     return validation_error_response(errors)
 
 
-def handle_generic_exception(exc: Exception) -> JSONResponse:
+def handle_generic_exception(request, exc: Exception) -> JSONResponse:
     """Handle unexpected exceptions."""
     return server_error_response(
         message="An unexpected error occurred"

@@ -1,7 +1,8 @@
 import os
+from uuid import uuid4
+
 import boto3
 from fastapi import UploadFile
-from uuid import uuid4
 
 USE_S3 = os.getenv("USE_S3", "false").lower() == "true"
 
