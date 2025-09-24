@@ -24,14 +24,26 @@ from app.routers import (
     messages,
     notifications,
     provinces,
-    uploads,
+    files,
     search,
-    bulk,
     security,
     health,
+    auth,
 )
 
-from app.core.middleware import limiter, rate_limit_exceeded_handler, SecurityHeadersMiddleware
+from app.core.middleware import (
+    limiter, 
+    rate_limit_exceeded_handler, 
+    SecurityHeadersMiddleware,
+    CSRFProtectionMiddleware,
+    RequestSizeLimitMiddleware
+)
+from app.core.responses import (
+    handle_api_exception,
+    handle_http_exception,
+    handle_validation_exception,
+    handle_generic_exception
+)
 from slowapi.errors import RateLimitExceeded
 
 
@@ -115,6 +127,9 @@ app.add_middleware(SecurityHeadersMiddleware)
 # ✅ Register middleware
 app.add_middleware(AuthLoggingMiddleware)
 app.add_middleware(BusinessRuleValidationMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CSRFProtectionMiddleware, secret_key=settings.JWT_SECRET_KEY)
+app.add_middleware(RequestSizeLimitMiddleware, max_size=settings.MAX_REQUEST_SIZE)
 
 # ✅ Add request logging and performance monitoring middleware
 @app.middleware("http")
@@ -171,9 +186,12 @@ async def logging_and_performance_middleware(request: Request, call_next):
 # ✅ Register exception handlers
 app.add_exception_handler(JWTError, jwt_exception_handler)
 app.add_exception_handler(ExpiredSignatureError, jwt_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(RequestValidationError, handle_validation_exception)
+app.add_exception_handler(HTTPException, handle_http_exception)
+app.add_exception_handler(Exception, handle_generic_exception)
 
 # ✅ Include routers
+app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(provinces.router)
 app.include_router(services.router)
@@ -183,9 +201,8 @@ app.include_router(orders.router)
 app.include_router(payments.router)
 app.include_router(messages.router)
 app.include_router(notifications.router)
-app.include_router(uploads.router)
+app.include_router(files.router)
 app.include_router(search.router)
-app.include_router(bulk.router)
 app.include_router(security.router)
 app.include_router(health.router)
 

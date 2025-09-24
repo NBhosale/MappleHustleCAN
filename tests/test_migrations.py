@@ -532,3 +532,58 @@ class TestMigrationErrorHandling:
                 
             finally:
                 engine.dispose()
+    
+    def test_migration_upgrade_downgrade_cycle(self):
+        """Test complete upgrade head && downgrade base cycle"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = os.path.join(temp_dir, "test.db")
+            database_url = f"sqlite:///{db_path}"
+            
+            # Create engine
+            engine = create_engine(database_url)
+            
+            # Create alembic config
+            alembic_cfg = Config("alembic.ini")
+            alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+            
+            try:
+                # Test upgrade to head
+                command.upgrade(alembic_cfg, "head")
+                
+                # Verify database state
+                with engine.connect() as conn:
+                    # Check that all expected tables exist
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
+                    tables = [row[0] for row in result]
+                    expected_tables = [
+                        "users", "services", "bookings", "items", "orders", 
+                        "payments", "messages", "notifications", "reviews",
+                        "subscriptions", "refresh_tokens", "user_sessions",
+                        "canadian_provinces", "system_events", "tax_rules",
+                        "provider_metrics", "alembic_version"
+                    ]
+                    for table in expected_tables:
+                        assert table in tables, f"Table {table} not found after upgrade"
+                
+                # Test downgrade to base
+                command.downgrade(alembic_cfg, "base")
+                
+                # Verify database is clean
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
+                    tables = [row[0] for row in result]
+                    # Should only have alembic_version table
+                    assert len(tables) <= 1, f"Unexpected tables after downgrade: {tables}"
+                
+                # Test upgrade again to ensure consistency
+                command.upgrade(alembic_cfg, "head")
+                
+                # Verify database state is consistent
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
+                    tables = [row[0] for row in result]
+                    for table in expected_tables:
+                        assert table in tables, f"Table {table} not found after re-upgrade"
+                        
+            finally:
+                engine.dispose()

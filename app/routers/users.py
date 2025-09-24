@@ -18,6 +18,8 @@ from app.services import users as user_service
 from app.utils.deps import get_current_user, require_admin, require_provider, require_client
 from app.utils.auth import verify_token
 from app.utils.email import send_password_reset_email
+from app.tasks.email_tasks import send_welcome_email_task, send_password_reset_email_task, send_email_verification_task
+from app.tasks.notification_tasks import create_notification_task
 from app.utils.validation import (
     validate_canadian_province,
     validate_postal_code,
@@ -55,7 +57,8 @@ def change_password(
 # --- Profile & Dashboards ---
 @router.get("/me", response_model=UserResponse)
 def get_my_profile(current_user=Depends(get_current_user)):
-    return current_user
+    # Convert User model to UserResponse schema to ensure no sensitive fields are exposed
+    return UserResponse.from_orm(current_user)
 
 
 @router.get("/admin/dashboard")

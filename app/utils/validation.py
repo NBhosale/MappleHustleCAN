@@ -426,9 +426,8 @@ def validate_booking_request(
     client_id: str,
     provider_id: str,
     service_id: str,
-    start_date: date,
-    start_time: time,
-    end_time: time
+    start_date: datetime,
+    end_date: datetime
 ) -> None:
     """
     Comprehensive validation for booking requests.
@@ -438,9 +437,8 @@ def validate_booking_request(
         client_id: Client user ID
         provider_id: Provider user ID
         service_id: Service ID
-        start_date: Booking start date
-        start_time: Booking start time
-        end_time: Booking end time
+        start_date: Booking start datetime
+        end_date: Booking end datetime
     
     Raises:
         ValidationError: If validation fails
@@ -449,10 +447,15 @@ def validate_booking_request(
     validate_user_verification_status(client_id, db)
     validate_user_verification_status(provider_id, db)
     
+    # Extract date and time components
+    start_date_only = start_date.date()
+    start_time_only = start_date.time()
+    end_time_only = end_date.time()
+    
     # Validate time slot
-    validate_booking_time_slot(db, service_id, start_date, start_time, end_time)
-    validate_booking_advance_notice(start_date, start_time)
-    validate_booking_duration(start_time, end_time)
+    validate_booking_time_slot(db, service_id, start_date_only, start_time_only, end_time_only)
+    validate_booking_advance_notice(start_date_only, start_time_only)
+    validate_booking_duration(start_time_only, end_time_only)
     
     # Validate geographic constraints
     client = db.query(User).filter(User.id == client_id).first()

@@ -1,8 +1,9 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator, Field
 from typing import Optional
 import uuid
 from enum import Enum
 from datetime import datetime
+import re
 
 
 # --- Enums ---
@@ -33,7 +34,19 @@ class UserBase(BaseModel):
 
 # --- Create User ---
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=8, max_length=128)
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', v):
+            raise ValueError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
+        return v
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if len(v.strip()) < 2:
+            raise ValueError('Name must be at least 2 characters long')
+        return v.strip()
 
 
 # --- Forgot/Reset Password ---
@@ -42,14 +55,26 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
-    new_password: str
+    token: str = Field(..., min_length=32)
+    new_password: str = Field(..., min_length=8, max_length=128)
+    
+    @validator('new_password')
+    def validate_password(cls, v):
+        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', v):
+            raise ValueError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
+        return v
 
 
 # --- Change Password ---
 class ChangePasswordRequest(BaseModel):
-    old_password: str
-    new_password: str
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
+    
+    @validator('new_password')
+    def validate_password(cls, v):
+        if not re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]', v):
+            raise ValueError('Password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character')
+        return v
 
 
 # --- Login ---
@@ -73,19 +98,33 @@ class UserResponse(UserBase):
 
 
 # --- Admin-only Response (extended) ---
+# SECURITY NOTE: This schema is intentionally minimal to prevent sensitive data exposure
+# Even admin users should not have access to sensitive fields like tokens or password hashes
 class UserAdminResponse(UserResponse):
     phone_number: Optional[str]
     is_phone_verified: Optional[bool]
     province_code: Optional[str]
     address: Optional[str]
     location: Optional[str]  # lat/lon as "POINT" WKT
-    verification_token: Optional[str]
-    password_reset_token: Optional[str]
-    password_reset_expires: Optional[datetime]
     last_login_at: Optional[datetime]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     deleted_at: Optional[datetime]
+    # SECURITY: Sensitive fields (verification_token, password_reset_token, hashed_password) 
+    # are intentionally excluded even from admin responses for security reasons
+
+    class Config:
+        orm_mode = True
+
+
+# --- Admin Detail Response (for internal admin operations only) ---
+# WARNING: This schema should ONLY be used for internal admin operations
+# and NEVER exposed via public API endpoints
+class UserAdminDetailResponse(UserAdminResponse):
+    """Extended admin response with additional fields for internal admin operations"""
+    # Additional admin fields can be added here if needed
+    # But NEVER include sensitive fields like tokens or password hashes
+    pass
 
 
 # --- Token responses ---

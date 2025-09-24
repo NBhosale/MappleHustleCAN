@@ -23,9 +23,11 @@ class SessionCreate(SessionBase):
     user_id: uuid.UUID
 
 
-class SessionResponse(SessionBase):
+class SessionResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
+    expires: datetime
+    context: Dict = {}
     created_at: datetime
 
     class Config:

@@ -14,7 +14,7 @@ from app.utils.deps import get_current_user
 from app.utils.storage import save_file
 from app.utils.validation import ValidationError
 
-router = APIRouter(prefix="/uploads", tags=["File Uploads"])
+router = APIRouter(prefix="/files", tags=["Files"])
 
 # Allowed file types and their max sizes
 ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]

@@ -14,9 +14,11 @@ class RefreshTokenCreate(RefreshTokenBase):
     user_id: uuid.UUID
 
 
-class RefreshTokenResponse(RefreshTokenBase):
+class RefreshTokenResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
+    revoked: bool
+    expires_at: datetime
     created_at: Optional[datetime]
 
     class Config:

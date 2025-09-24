@@ -87,6 +87,21 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    command: |
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        python -c 'import time; import psycopg2; 
+        while True:
+          try:
+            psycopg2.connect(\"postgresql://maplehustlecan:${POSTGRES_PASSWORD}@db:5432/maplehustlecan\")
+            break
+          except:
+            time.sleep(1)' &&
+        echo 'Running database migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+      "
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
       interval: 30s

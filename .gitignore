@@ -75,3 +75,4 @@ alembic/versions/*.pyc
 
 # Docker
 .dockerignore
+.env

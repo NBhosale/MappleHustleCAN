@@ -41,11 +41,20 @@ def create_booking(
             str(booking.provider_id),
             str(booking.service_id),
             booking.start_date,
-            booking.start_time,
-            booking.end_time
+            booking.end_date
         )
         
-        return booking_service.create_booking(db, booking, current_user.id)
+        return booking_service.create_booking(
+            db=db,
+            client_id=current_user.id,
+            provider_id=booking.provider_id,
+            service_id=booking.service_id,
+            start_date=booking.start_date,
+            end_date=booking.end_date,
+            total_amount=booking.total_amount,
+            platform_fee=booking.platform_fee,
+            tip=booking.tip
+        )
     except ValidationError as e:
         raise HTTPException(status_code=422, detail=str(e.detail))
     except ValueError as e:

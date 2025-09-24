@@ -14,13 +14,15 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), unique=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    hashed_password = Column(String(255), nullable=False)
 
     # --- Profile ---
     name = Column(String(255), nullable=False)
     address = Column(String(255), nullable=True)
     city = Column(String(100), nullable=True)
+    province_code = Column(String(2), nullable=True)  # Canadian province code
     postal_code = Column(String(20), nullable=True)
+    phone_number = Column(String(20), nullable=True)
     location = Column(Geography(geometry_type="POINT", srid=4326), nullable=True)  # lat/lon
     profile_image_path = Column(String(255), nullable=True)
 
